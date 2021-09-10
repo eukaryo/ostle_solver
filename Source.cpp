@@ -925,9 +925,9 @@ int main(int argc, char *argv[]) {
 
 	init_move_tables();
 
-	test_move(12345, 10000);
-	test_checkmate_detector_func(12345, 10000);
-	test_bitboard_symmetry(12345, 10000);
+	//test_move(12345, 10000);
+	//test_checkmate_detector_func(12345, 10000);
+	//test_bitboard_symmetry(12345, 10000);
 
 	OstleEnumerator e;
 	e.do_enumerate();
