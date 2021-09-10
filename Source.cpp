@@ -129,7 +129,7 @@ uint64_t horizontal_mirror_5x5_bitboard(uint64_t b) {
 alignas(32) const static uint8_t transpose_5x5_table[32] = { 0,5,10,15,20,1,6,11,16,21,2,7,12,17,22,3,8,13,18,23,4,9,14,19,24,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
 
 uint64_t transpose_ostle_5x5_bitboard(const uint64_t b) {
-	//最下位6bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを転置して返す。
+	//最下位5bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを転置して返す。
 
 	constexpr uint64_t mask_1 = 0b00000'10100'00010'10000'01010ULL;
 	constexpr uint64_t mask_2 = 0b00000'00000'11000'11100'01100ULL;
@@ -138,7 +138,7 @@ uint64_t transpose_ostle_5x5_bitboard(const uint64_t b) {
 	constexpr uint64_t mask_c = 0b11110'11111'11111'11111'01111ULL;
 	constexpr uint64_t mask_d = 0b00001'00000'00000'00000'10000ULL;
 
-	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 6; };
+	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 5; };
 
 	uint64_t t, s, c = b & X2(mask_c), d = b & X2(mask_d);
 
@@ -155,7 +155,7 @@ uint64_t transpose_ostle_5x5_bitboard(const uint64_t b) {
 alignas(32) const static uint8_t vertical_mirror_5x5_table[32] = { 20,21,22,23,24,15,16,17,18,19,10,11,12,13,14,5,6,7,8,9,0,1,2,3,4,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
 
 uint64_t vertical_mirror_ostle_5x5_bitboard(const uint64_t b) {
-	//最下位6bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを縦方向に反転させて返す。
+	//最下位5bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを縦方向に反転させて返す。
 
 	constexpr uint64_t mask_1_lo = 0b00000'00000'11111'00000'11111ULL;
 	constexpr uint64_t mask_1_hi = 0b00000'11111'00000'11111'00000ULL;
@@ -164,7 +164,7 @@ uint64_t vertical_mirror_ostle_5x5_bitboard(const uint64_t b) {
 	constexpr uint64_t mask_3_lo = 0b00000'00000'00000'00000'11111ULL;
 	constexpr uint64_t mask_3_hi = 0b11111'11111'11111'11111'00000ULL;
 
-	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 6; };
+	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 5; };
 
 	uint64_t t;
 	t = ((b >> 5) & X2(mask_1_lo)) | ((b << 5) & X2(mask_1_hi));
@@ -177,7 +177,7 @@ uint64_t vertical_mirror_ostle_5x5_bitboard(const uint64_t b) {
 alignas(32) const static uint8_t horizontal_mirror_5x5_table[32] = { 4,3,2,1,0,9,8,7,6,5,14,13,12,11,10,19,18,17,16,15,24,23,22,21,20,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
 
 uint64_t horizontal_mirror_ostle_5x5_bitboard(uint64_t b) {
-	//最下位6bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを横方向に反転させて返す。
+	//最下位5bitに穴の位置が格納され、次の50bitに5x5 Bitboard2つが25bitずつ詰めて格納されているとする。3要素すべてを横方向に反転させて返す。
 
 	constexpr uint64_t mask_1_lo = 0b00101'00101'00101'00101'00101ULL;
 	constexpr uint64_t mask_1_hi = 0b01010'01010'01010'01010'01010ULL;
@@ -186,7 +186,7 @@ uint64_t horizontal_mirror_ostle_5x5_bitboard(uint64_t b) {
 	constexpr uint64_t mask_3_lo = 0b00001'00001'00001'00001'00001ULL;
 	constexpr uint64_t mask_3_hi = 0b11110'11110'11110'11110'11110ULL;
 
-	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 6; };
+	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 5; };
 
 	uint64_t t;
 	t = ((b >> 1) & X2(mask_1_lo)) | ((b << 1) & X2(mask_1_hi));
@@ -202,18 +202,18 @@ uint64_t encode_ostle(const uint64_t bb_player, const uint64_t bb_opponent, cons
 	assert((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent);
 
 	uint64_t answer = pos_hole;
-	answer |= pext_intrinsics(bb_player, BB_ALL_8X8_5X5) << 6;
-	answer |= pext_intrinsics(bb_opponent, BB_ALL_8X8_5X5) << 31;
+	answer |= pext_intrinsics(bb_player, BB_ALL_8X8_5X5) << 5;
+	answer |= pext_intrinsics(bb_opponent, BB_ALL_8X8_5X5) << 30;
 
 	return answer;
 }
 void decode_ostle(const uint64_t code, uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole) {
-	assert(code < (1ULL << 56));
+	assert(code < (1ULL << 55));
 	assert((code % 32) < 25);
 
 	pos_hole = code % 32;
-	bb_player = pdep_intrinsics(code >> 6, BB_ALL_8X8_5X5);
-	bb_opponent = pdep_intrinsics(code >> 31, BB_ALL_8X8_5X5);
+	bb_player = pdep_intrinsics(code >> 5, BB_ALL_8X8_5X5);
+	bb_opponent = pdep_intrinsics(code >> 30, BB_ALL_8X8_5X5);
 }
 
 std::string code2string(const uint64_t code) {
@@ -223,10 +223,10 @@ std::string code2string(const uint64_t code) {
 	std::string answer = "";
 
 	for (int i = 0; i < 25; ++i) {
-		if (code & (1ULL << (i + 6))) {
+		if (code & (1ULL << (i + 5))) {
 			answer += "1";
 		}
-		else if (code & (1ULL << (i + 31))) {
+		else if (code & (1ULL << (i + 30))) {
 			answer += "2";
 		}
 		else if (pos_hole == i) {
@@ -239,7 +239,7 @@ std::string code2string(const uint64_t code) {
 	return answer;
 }
 
-uint64_t board_symmetry(const int s, uint64_t code) {
+uint64_t code_symmetry(const int s, uint64_t code) {
 
 	if (s & 1)code = horizontal_mirror_ostle_5x5_bitboard(code);
 	if (s & 2)code = vertical_mirror_ostle_5x5_bitboard(code);
@@ -248,10 +248,10 @@ uint64_t board_symmetry(const int s, uint64_t code) {
 	return code;
 }
 
-uint64_t board_unique(uint64_t code) {
+uint64_t code_unique(uint64_t code) {
 
 	for (int i = 1; i <= 7; ++i) {
-		const uint64_t new_code = board_symmetry(i, code);
+		const uint64_t new_code = code_symmetry(i, code);
 		if (new_code < code)code = new_code;
 	}
 
@@ -335,7 +335,7 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 	return true;
 }
 
-typedef std::array<uint8_t, 32> Moves; //下位6bitは着手位置、上位2bitは動かす方向。[0]に指し手の数、指し手自体は[1]から。最大24通り。
+typedef std::array<uint8_t, 32> Moves; //下位5bitは着手位置、上位2bitは動かす方向。[0]に指し手の数、指し手自体は[1]から。最大24通り。
 
 //4方向のことを「上下左右」とは呼ばず、「横方向と縦方向」「プラス方向とマイナス方向」のどちらかで呼ぶことにする。
 //例えば「上方向」の代わりに「縦マイナス方向」と呼ぶことにする。
@@ -508,7 +508,7 @@ void generate_moves(const uint64_t bb_player, const uint64_t bb_opponent, const 
 }
 
 uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, const uint8_t move) {
-	//moveを指して、他の引数を変更する。場外に何が落ちたかを意味する2bitの補助情報を返り値とする。
+	//moveを指して、他の引数を変更する。コマをいくつ押したかと場外に何が落ちたかを意味する補助情報を返り値とする。補助情報はundoのとき必要になる。
 
 	//穴を動かす手の場合。合法手であることは生成関数が保証しているので、ただ動かして終了。
 	if (pos_hole == (move % 32)) {
@@ -851,7 +851,7 @@ class OstleEnumerator {
 		assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
 		assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
 
-		const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
+		const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
 
 		if (searched_position.find(code) != searched_position.end()) {
 			return;
@@ -887,7 +887,7 @@ public:
 
 	void do_enumerate() {
 
-		const uint64_t initial_code = encode_ostle(0b00011111ULL, 0b00011111'00000000'00000000'00000000'00000000ULL, 12);
+		const uint64_t initial_code = code_unique(encode_ostle(0b00011111ULL, 0b00011111'00000000'00000000'00000000'00000000ULL, 12));
 
 		unsearched_position.insert(initial_code);
 
