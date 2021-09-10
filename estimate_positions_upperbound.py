@@ -1,9 +1,3 @@
-import os
-import sys
-import re
-import datetime
-import pulp
-
 from math import factorial as fa
 
 a1 = (fa(25) // (fa(5) * fa(5) * fa(15))) * 15
