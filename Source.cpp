@@ -252,10 +252,22 @@ uint64_t code_unique(uint64_t code) {
 
 	for (int i = 1; i <= 7; ++i) {
 		const uint64_t new_code = code_symmetry(i, code);
-		if (new_code < code)code = new_code;
+		code = std::min(code, new_code);
 	}
 
 	return code;
+}
+
+std::string code_2_unique_string(const uint64_t code) {
+
+	std::string answer = code2string(code);
+
+	for (int i = 1; i <= 7; ++i) {
+		const std::string new_answer = code2string(code_symmetry(i, code));
+		answer = std::min(answer, new_answer);
+	}
+
+	return answer;
 }
 
 bool test_bitboard_symmetry(const uint64_t seed, const int length) {
@@ -859,10 +871,6 @@ template<bool mercy>class OstleEnumerator {
 			return;
 		}
 
-		if (unsearched_position.find(code) != unsearched_position.end()) {
-			return;
-		}
-
 		if (mercy == false) {
 			if (is_checkmate(bb_player, bb_opponent, pos_hole)) {
 				searched_position.insert(code);
@@ -886,17 +894,20 @@ template<bool mercy>class OstleEnumerator {
 			if (mercy == true) {
 				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
 			}
-			search(next_bb_player, next_bb_opponent, next_pos_hole, depth - 1);
+			search(next_bb_opponent, next_bb_player, next_pos_hole, depth - 1);
 		}
 	}
 
 public:
 
-	void do_enumerate() {
+	void do_enumerate(const bool speedtest = false) {
 
 		const uint64_t initial_code = code_unique(encode_ostle(0b00011111ULL, 0b00011111'00000000'00000000'00000000'00000000ULL, 12));
 
 		unsearched_position.insert(initial_code);
+
+		const auto start = std::chrono::system_clock::now();
+		int count = 0;
 
 		while (!unsearched_position.empty()) {
 			const auto code = *unsearched_position.begin();
@@ -905,7 +916,17 @@ public:
 			uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
 			decode_ostle(code, bb_player, bb_opponent, pos_hole);
 
-			search(bb_player, bb_opponent, pos_hole, 64);
+			search(bb_player, bb_opponent, pos_hole, 10);
+
+			if (speedtest && count++ == 30)break;
+		}
+
+		const auto end = std::chrono::system_clock::now();
+
+		if (speedtest) {
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+			std::cout << elapsed << "ms" << std::wcslen;
+			return;
 		}
 
 		std::cout << searched_position.size() << std::endl;
@@ -913,7 +934,7 @@ public:
 		std::vector<std::string>answers;
 
 		for (const uint64_t c : searched_position) {
-			answers.push_back(code2string(c));
+			answers.push_back(code_2_unique_string(c));
 		}
 
 		std::sort(answers.begin(), answers.end());
