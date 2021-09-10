@@ -833,7 +833,9 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 
 
 
-class OstleEnumerator {
+template<bool mercy>class OstleEnumerator {
+	
+	//mercy: 勝利できる手を見逃さないと辿り着けない局面を列挙するかどうか。
 
 	std::unordered_set<uint64_t>searched_position;
 
@@ -861,9 +863,11 @@ class OstleEnumerator {
 			return;
 		}
 
-		if (is_checkmate(bb_player, bb_opponent, pos_hole)) {
-			searched_position.insert(code);
-			return;
+		if (mercy == false) {
+			if (is_checkmate(bb_player, bb_opponent, pos_hole)) {
+				searched_position.insert(code);
+				return;
+			}
 		}
 
 		if (depth <= 0) {
@@ -879,6 +883,9 @@ class OstleEnumerator {
 			uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
 			do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[depth][i]);
 			if (_mm_popcnt_u64(next_bb_player) == 3)continue;
+			if (mercy == true) {
+				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
+			}
 			search(next_bb_player, next_bb_opponent, next_pos_hole, depth - 1);
 		}
 	}
@@ -929,7 +936,7 @@ int main(int argc, char *argv[]) {
 	//test_checkmate_detector_func(12345, 10000);
 	//test_bitboard_symmetry(12345, 10000);
 
-	OstleEnumerator e;
+	OstleEnumerator<false> e;
 	e.do_enumerate();
 
 	return 0;
