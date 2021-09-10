@@ -1,4 +1,4 @@
-﻿#include<iostream>
+#include<iostream>
 #include<vector>
 #include<string>
 #include<map>
@@ -289,6 +289,12 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 			return false;
 		}
 
+		if (bb1 != func_5x5_bitboard(bb1_converted) ||
+			bb2 != func_5x5_bitboard(bb2_converted) ||
+			code != func_ostle_5x5_bitboard(code_converted)) {
+			return false;
+		}
+
 		return true;
 	};
 
@@ -298,9 +304,24 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 			std::cout << "test_bitboard_symmetry: " << i << " / " << length << std::endl;
 		}
 
-		const uint64_t bb1 = rnd() & BB_ALL_8X8_5X5;
-		const uint64_t bb2 = rnd() & BB_ALL_8X8_5X5;
 		const uint64_t pos = pos_dist(rnd);
+		uint64_t bb_occupied = pdep_intrinsics(1ULL << pos, BB_ALL_8X8_5X5);
+
+		const auto fill_func = [&]() {
+			uint64_t bb_answer = 0;
+			for (int j = 4 + (rnd() % 2); j > 0;) {
+				const uint64_t bb_rnd = pdep_intrinsics(1ULL << pos_dist(rnd), BB_ALL_8X8_5X5);
+				if (bb_rnd & bb_occupied)continue;
+				bb_answer |= bb_rnd;
+				bb_occupied |= bb_rnd;
+				--j;
+			}
+			return bb_answer;
+		};
+
+		const uint64_t bb1 = fill_func();
+		const uint64_t bb2 = fill_func();
+
 
 		if (!test_func(bb1, bb2, pos, transpose_5x5_bitboard, transpose_ostle_5x5_bitboard) ||
 			!test_func(bb1, bb2, pos, vertical_mirror_5x5_bitboard, vertical_mirror_ostle_5x5_bitboard) ||
@@ -313,7 +334,6 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 	std::cout << "test clear!" << std::endl;
 	return true;
 }
-
 
 typedef std::array<uint8_t, 32> Moves; //下位6bitは着手位置、上位2bitは動かす方向。[0]に指し手の数、指し手自体は[1]から。最大24通り。
 
@@ -610,7 +630,7 @@ bool test_move(const uint64_t seed, const int length) {
 
 	for (int i = 0; i < length; ++i) {
 		if (i % (length / 10) == 0) {
-			std::cout << "test_bitboard_symmetry: " << i << " / " << length << std::endl;
+			std::cout << "test_move: " << i << " / " << length << std::endl;
 		}
 
 		const uint64_t pos = pos_dist(rnd);
@@ -769,7 +789,7 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 
 	for (int i = 0; i < length; ++i) {
 		if (i % (length / 10) == 0) {
-			std::cout << "test_bitboard_symmetry: " << i << " / " << length << std::endl;
+			std::cout << "test_checkmate_detector_func: " << i << " / " << length << std::endl;
 		}
 
 		const uint64_t pos = pos_dist(rnd);
@@ -905,9 +925,9 @@ int main(int argc, char *argv[]) {
 
 	init_move_tables();
 
-	//test_move(12345, 10000);
-	//test_checkmate_detector_func(12345, 10000);
-	//test_bitboard_symmetry(12345, 10000);
+	test_move(12345, 10000);
+	test_checkmate_detector_func(12345, 10000);
+	test_bitboard_symmetry(12345, 10000);
 
 	OstleEnumerator e;
 	e.do_enumerate();
