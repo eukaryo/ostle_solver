@@ -918,14 +918,14 @@ public:
 
 			search(bb_player, bb_opponent, pos_hole, 10);
 
-			if (speedtest && count++ == 30)break;
+			if (speedtest && ++count == 30)break;
 		}
 
 		const auto end = std::chrono::system_clock::now();
 
 		if (speedtest) {
 			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-			std::cout << elapsed << "ms" << std::wcslen;
+			std::cout << elapsed << " ms" << std::endl;
 			return;
 		}
 
