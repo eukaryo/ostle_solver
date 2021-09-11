@@ -844,16 +844,251 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 
 
 
+class HashTable {
 
-template<bool mercy>class OstleEnumerator {
+private:
+
+	uint64_t shiftxor_forward(uint64_t x, int s) {
+		return x ^ (x >> s);
+	}
+
+	uint64_t split_mix_64(uint64_t x) {
+
+		// SplitMix64
+		// http://prng.di.unimi.it/splitmix64.c
+
+		x += 0x9e3779b97f4a7c15ULL;
+		x = shiftxor_forward(x, 30);
+		x *= 0xbf58476d1ce4e5b9ULL;
+		x = shiftxor_forward(x, 27);
+		x *= 0x94d049bb133111ebULL;
+		x = shiftxor_forward(x, 31);
+		return x;
+	}
+
+	uint64_t shiftxor_backward(uint64_t x, int s) {
+		if (s >= 32)return x ^ (x >> s);
+		for (uint64_t mask = ~(0xFFFF'FFFF'FFFF'FFFFULL >> s); mask; mask >>= s) {
+			uint64_t y = x & mask;
+			uint64_t z = y >> s;
+			x = x ^ z;
+		}
+		return x;
+	}
+
+	uint64_t split_mix_64_inverse(uint64_t x) {
+		x = shiftxor_backward(x, 31);
+		x *= 0x319642b2d24d8ec3ULL;
+		x = shiftxor_backward(x, 27);
+		x *= 0x96de1b173f119089ULL;
+		x = shiftxor_backward(x, 30);
+		x -= 0x9e3779b97f4a7c15ULL;
+		return x;
+	}
+
+	std::vector<uint64_t>hash_table;
+	std::vector<uint8_t>signature_table;
+	int64_t table_bitlen; // hash_tableの現在の容量は2^(table_bitlen)
+	int64_t population;
+
+	void extend() {
+
+		std::cout << "extend: hash_table.size() = " << hash_table.size() << ", population = " << population << std::endl;
+
+		std::vector<uint64_t>old_data(population);
+		int64_t count = 0;
+		for (uint64_t i = 0; i < signature_table.size(); ++i) {
+			if (signature_table[i] == 0x80)continue;
+			old_data[count++] = hash_table[i];
+		}
+
+		assert(count == population);
+
+		for (; table_bitlen < 63;) {
+
+			++table_bitlen;
+
+			const uint64_t bitmask = (1ULL << table_bitlen) - 1;
+
+			bool is_hopeless = false;
+
+			//度数表を作る。この時点で、32を超える配列要素があれば、insert失敗するのでcontinueする。
+			std::vector<uint8_t>count((1ULL << table_bitlen), 0);
+			for (int64_t i = 0; i < population; ++i) {
+				if (++count[old_data[i] & bitmask] > 32) {
+					is_hopeless = true;
+					break;
+				}
+			}
+			if (is_hopeless)continue;
+
+			//各添字番号について、（Robin Hood Hashingでinsertしたときに）その要素が実際に格納され始める位置を求める。
+			//32以上離れることがあれば、それはinsert失敗を意味するのでcontinueする。
+
+			std::vector<uint8_t>start_pos((1ULL << table_bitlen), 0);
+			for (uint64_t i = 1; i <= bitmask; ++i) {
+				start_pos[i] = uint8_t(std::max(uint64_t(start_pos[i - 1]) + (i - 1) + uint64_t(count[i - 1]), i) - i); // main DP
+				if (start_pos[i] >= 32) {
+					is_hopeless = true;
+					break;
+				}
+			}
+			if (is_hopeless)continue;
+			if (uint64_t(start_pos[bitmask]) + bitmask + uint64_t(count[bitmask]) >= (1ULL << table_bitlen) + 32)continue;
+
+			//
+			//insertが失敗しないことが分かったので、ハッシュテーブルを構築する。
+			//
+
+			const uint64_t N = (1ULL << table_bitlen) + 31;
+			hash_table.resize(N);
+			signature_table.resize(N);
+			for (int i = 0; i < N; ++i) {
+				hash_table[i] = 0;
+				signature_table[i] = 0x80;
+			}
+
+			for (int i = 0; i < population; ++i) {
+				const uint64_t hashcode = old_data[i] & bitmask;
+				hash_table[uint64_t(start_pos[hashcode]) + hashcode] = old_data[i];
+				signature_table[uint64_t(start_pos[hashcode]) + hashcode] = uint8_t(old_data[i] >> 57);
+				assert(start_pos[hashcode] < 32ULL);
+				++start_pos[hashcode];
+			}
+
+			return;
+		}
+
+		std::cout << "error: failed to extend a hashtable" << std::endl;
+		std::exit(EXIT_FAILURE);
+	}
+
+public:
+
+	HashTable(const uint64_t bitlen) {
+		table_bitlen = bitlen;
+
+		hash_table = std::vector<uint64_t>(((1ULL << table_bitlen) + 31), 0);
+		signature_table = std::vector<uint8_t>((1ULL << table_bitlen) + 31, 0x80);
+		population = 0;
+	}
+
+	HashTable() :HashTable(8) {}
+
+	void clear() {
+		table_bitlen = 8;
+
+		hash_table = std::vector<uint64_t>(((1ULL << table_bitlen) + 31), 0);
+		signature_table = std::vector<uint8_t>((1ULL << table_bitlen) + 31, 0x80);
+		population = 0;
+	}
+
+	int64_t size() {
+		return population;
+	}
+
+	void insert(const uint64_t entry) {
+
+		//引数の情報をハッシュテーブルに格納する、またはアップデートする。
+		//衝突処理はオープンアドレス法として、indexを1ずつ増やす。Robin Hood Hashingは採用しない。本来のindexが埋まっていたら最大31まで増やすことを許容する。
+		//格納もアップデートもできなかったらハッシュテーブルの大きさを倍にしてinsertしなおす。
+
+		const uint64_t hashcode = split_mix_64(entry);
+		const uint64_t index = hashcode & ((1ULL << table_bitlen) - 1);
+		const uint8_t signature = uint8_t(hashcode >> 57);
+
+		__m256i query_signature = _mm256_set1_epi8(signature);
+		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[index]);
+
+		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
+
+		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
+		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
+
+		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
+
+		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
+		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
+
+		//引数のエントリが既に格納されていれば、何もせずreturnする。
+		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
+			const uint64_t pos = index + i;
+			if (hash_table[pos] == hashcode)return;
+		}
+
+		//空白エントリがあれば、（その手前に同じエントリはなかったので）、最初に見つけた空白エントリに代入して終了。
+		uint32_t i = 0;
+		if (bitscan_forward64(is_empty, &i)) {
+
+			const uint64_t pos = index + i;
+			signature_table[pos] = signature;
+			hash_table[pos] = hashcode;
+			++population;
+			return;
+		}
+		
+		//ハッシュテーブルが詰まっていて代入できなかったので、リハッシュして再試行する。
+		extend();
+		insert(entry);
+	}
+
+	bool find(const uint64_t entry) {
+
+		//ハッシュテーブルに引数局面の情報があるか調べて、あればtrueを返し、なければfalseを返す。
+
+		//ナイーブな処理手順では、[index]から順番になめていって所望の局面かどうかを調べていき、所望の局面を得るか空白エントリに当たったら終了する。
+		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
+
+		const uint64_t hashcode = split_mix_64(entry);
+		const uint64_t index = hashcode & ((1ULL << table_bitlen) - 1);
+		const uint8_t signature = uint8_t(hashcode >> 57);
+
+		__m256i query_signature = _mm256_set1_epi8(signature);
+		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[index]);
+
+		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
+
+		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
+		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
+
+		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
+
+		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
+		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
+
+		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
+			const uint64_t pos = index + i;
+			if (hash_table[pos] == hashcode)return true;
+		}
+		return false;
+	}
+
+	bool get(uint64_t index, uint64_t &dest) {
+		if (index >= signature_table.size())return false;
+		if (signature_table[index] == 0x80)return false;
+		dest = split_mix_64_inverse(hash_table[index]);
+		return true;
+	}
+
+	void print_all() {
+		for (uint64_t i = 0; i < signature_table.size(); ++i) {
+			if (signature_table[i] == 0x80)continue;
+			const uint64_t code = split_mix_64_inverse(hash_table[i]);
+			const std::string s = code_2_unique_string(code);
+			std::cout << s << std::endl;
+		}
+	}
+};
+
+template<bool mercy>class OstleEnumerator_search_based {
 	
 	//mercy: 勝利できる手を見逃さないと辿り着けない局面を列挙するかどうか。
 
-	std::unordered_set<uint64_t>searched_position;
+	HashTable searched_position;
 
-	std::unordered_set<uint64_t>unsearched_position;
+	HashTable unsearched_position;
 
-	Moves moves[100];
+	Moves moves[128];
 
 
 	void search(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int depth) {
@@ -867,7 +1102,7 @@ template<bool mercy>class OstleEnumerator {
 
 		const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
 
-		if (searched_position.find(code) != searched_position.end()) {
+		if (searched_position.find(code)) {
 			return;
 		}
 
@@ -900,53 +1135,102 @@ template<bool mercy>class OstleEnumerator {
 
 public:
 
-	void do_enumerate(const bool speedtest = false) {
+	void do_enumerate() {
 
 		const uint64_t initial_code = code_unique(encode_ostle(0b00011111ULL, 0b00011111'00000000'00000000'00000000'00000000ULL, 12));
 
-		unsearched_position.insert(initial_code);
+		std::vector<uint64_t>task{ initial_code };
 
-		const auto start = std::chrono::system_clock::now();
-		int count = 0;
+		for (uint64_t iteration = 1; task.size() > 0; ++iteration) {
 
-		while (!unsearched_position.empty()) {
-			const auto code = *unsearched_position.begin();
-			unsearched_position.erase(code);
+			for (const uint64_t code : task) {
+				uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+				decode_ostle(code, bb_player, bb_opponent, pos_hole);
+				search(bb_player, bb_opponent, pos_hole, 100);
+			}
 
-			uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
-			decode_ostle(code, bb_player, bb_opponent, pos_hole);
+			task.clear();
 
-			search(bb_player, bb_opponent, pos_hole, 10);
+			for (uint64_t i = 0; i < unsearched_position.size(); ++i) {
+				uint64_t code = 0;
+				if (!unsearched_position.get(i, code))continue;
+				if (searched_position.find(code))continue;
+				task.push_back(code);
+			}
 
-			if (speedtest && ++count == 30)break;
+			if (task.size() == 0)break;
+
+			unsearched_position.clear();
 		}
 
-		const auto end = std::chrono::system_clock::now();
-
-		if (speedtest) {
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-			std::cout << elapsed << " ms" << std::endl;
-			return;
-		}
 
 		std::cout << searched_position.size() << std::endl;
 
-		std::vector<std::string>answers;
+		searched_position.print_all();
 
-		for (const uint64_t c : searched_position) {
-			answers.push_back(code_2_unique_string(c));
-		}
-
-		std::sort(answers.begin(), answers.end());
-
-		for (const std::string s : answers) {
-			std::cout << s << std::endl;
-		}
+		return;
 	}
 };
 
 
+class OstleEnumerator_brute_force {
 
+private:
+
+	HashTable positions;
+
+
+	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent, const int num_hole) {
+
+		if (cursor == 25) {
+			const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
+			positions.insert(code);
+			return;
+		}
+
+		const int num_remaining_object = num_piece_player + num_piece_opponent + num_hole;
+
+		if (num_remaining_object + cursor < 25) {
+			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent, num_hole);
+		}
+
+		const uint64_t bb_cursor = pdep_intrinsics(1ULL << cursor, BB_ALL_8X8_5X5);
+
+		if (num_piece_player > 0) {
+			position_maker(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent, num_hole);
+		}
+		if (num_piece_opponent > 0) {
+			position_maker(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1, num_hole);
+		}
+		if (num_hole > 0) {
+			position_maker(bb_player, bb_opponent, cursor, cursor + 1, num_piece_player, num_piece_opponent, num_hole - 1);
+		}
+	}
+
+public:
+
+	void do_enumerate() {
+
+		const auto start = std::chrono::system_clock::now();
+
+		position_maker(0, 0, 0, 0, 5, 5, 1);
+		position_maker(0, 0, 0, 0, 5, 4, 1);
+		position_maker(0, 0, 0, 0, 4, 5, 1);
+		position_maker(0, 0, 0, 0, 4, 4, 1);
+
+		const auto end = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+
+		std::cout << elapsed << std::endl;
+
+		std::cout << positions.size() << std::endl;
+
+		//positions.print_all();
+
+		return;
+	}
+
+};
 
 
 int main(int argc, char *argv[]) {
@@ -957,8 +1241,12 @@ int main(int argc, char *argv[]) {
 	//test_checkmate_detector_func(12345, 10000);
 	//test_bitboard_symmetry(12345, 10000);
 
-	OstleEnumerator<false> e;
+	//OstleEnumerator_search_based<false> e;
+	//e.do_enumerate();
+
+	OstleEnumerator_brute_force e;
 	e.do_enumerate();
+
 
 	return 0;
 }
