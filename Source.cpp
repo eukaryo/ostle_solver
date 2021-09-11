@@ -19,6 +19,7 @@
 #include<functional>
 #include<limits>
 #include<exception>
+#include<execution>
 
 #include <mmintrin.h>
 #include <xmmintrin.h>
@@ -1184,77 +1185,111 @@ private:
 	std::chrono::system_clock::time_point t0;
 
 
-	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent, const int num_hole) {
+	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
-		const int num_remaining_object = num_piece_player + num_piece_opponent + num_hole;
+		if (positions.size() == 1'500'000'000ULL)return;
+
+		const int num_remaining_object = num_piece_player + num_piece_opponent;
 
 		if (cursor == 25) {
 			assert(num_remaining_object == 0);
-			const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
+//			const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
+			const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
 			positions.push_back(code);
+
 			if (_mm_popcnt_u64(positions.size()) == 1) {
 				const auto t1 = std::chrono::system_clock::now();
-				const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count();
-				std::cout << "positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " seconds" << std::endl;
+				const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+				if (elapsed >= 2000) {
+					std::cout << "LOG: positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+				}
 			}
 			return;
 		}
 
+		if (pos_hole == cursor) {
+			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+			return;
+		}
 
-		if (num_remaining_object + cursor < 25) {
-			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent, num_hole);
+		if (num_remaining_object + cursor < ((cursor < pos_hole) ? 24 : 25)) {
+			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 		}
 
 		const uint64_t bb_cursor = pdep_intrinsics(1ULL << cursor, BB_ALL_8X8_5X5);
 
 		if (num_piece_player > 0) {
-			position_maker(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent, num_hole);
+			position_maker(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
 		}
 		if (num_piece_opponent > 0) {
-			position_maker(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1, num_hole);
+			position_maker(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
 		}
-		if (num_hole > 0) {
-			position_maker(bb_player, bb_opponent, cursor, cursor + 1, num_piece_player, num_piece_opponent, num_hole - 1);
+	}
+
+	uint64_t position_maker_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent) {
+
+		std::cout << "LOG: start: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ")" << std::endl;
+
+		const auto print_time = [&](std::string task_name) {
+			const auto t1 = std::chrono::system_clock::now();
+			int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+			std::cout << "LOG: elapsed time:" << task_name << ": " << elapsed << " milliseconds" << std::endl;
+			t0 = std::chrono::system_clock::now();
+		};
+
+		positions.clear();
+		positions.reserve(500'000'000ULL);
+
+		t0 = std::chrono::system_clock::now();
+
+		position_maker(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
+
+		{
+			const auto t1 = std::chrono::system_clock::now();
+			int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+			std::cout << "result: final positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
 		}
+
+		print_time("position_maker");
+
+		const int64_t siz = positions.size();
+#pragma omp parallel for
+		for (int64_t i = 0; i < siz; ++i) {
+			positions[i] = code_unique(positions[i]);
+		}
+
+		print_time("fmap code_unique");
+
+		std::sort(std::execution::par, positions.begin(), positions.end());
+
+		print_time("parallel quicksort");
+
+		uint64_t num_unique_positions = 1;
+		for (uint64_t i = 1; i < positions.size(); ++i) {
+			if (positions[i - 1] != positions[i])++num_unique_positions;
+		}
+
+		print_time("counting unique positions");
+
+		std::cout << "result: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ") = " << num_unique_positions << std::endl;
+
+		return num_unique_positions;
 	}
 
 public:
 
 	void do_enumerate() {
 
-		t0 = std::chrono::system_clock::now();
+		const uint64_t holes[6] = { 0,1,2,6,7,12 };
+		uint64_t num_unique_positions = 0;
 
-		positions.reserve(21'880'262'250ULL);
+		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
+		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
+		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
+		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
 
-		position_maker(0, 0, 0, 0, 5, 5, 1);
-		position_maker(0, 0, 0, 0, 5, 4, 1);
-		position_maker(0, 0, 0, 0, 4, 5, 1);
-		position_maker(0, 0, 0, 0, 4, 4, 1);
+		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
 
-		const auto t2 = std::chrono::system_clock::now();
-		int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t2 - t0).count();
-
-		std::cout << "enumerate: " << elapsed << " seconds" << std::endl;
-
-		std::cout << positions.size() << std::endl;
-
-		const auto t3 = std::chrono::system_clock::now();
-
-		std::sort(positions.begin(), positions.end());
-		uint64_t num_unique_positions = 1;
-		for (uint64_t i = 1; i < positions.size(); ++i) {
-			if (positions[i - 1] != positions[i])++num_unique_positions;
-		}
-
-		const auto t4 = std::chrono::system_clock::now();
-		elapsed = std::chrono::duration_cast<std::chrono::seconds>(t4 - t3).count();
-
-		std::cout << "sort and count unique positions: " << elapsed << " seconds" << std::endl;
-
-		std::cout << num_unique_positions << std::endl;
-
-
-		//positions.print_all();
 
 		return;
 	}
