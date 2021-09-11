@@ -1177,18 +1177,29 @@ class OstleEnumerator_brute_force {
 
 private:
 
-	HashTable positions;
+	//HashTable positions;
+
+	std::vector<uint64_t>positions;
+
+	std::chrono::system_clock::time_point t0;
 
 
 	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent, const int num_hole) {
 
+		const int num_remaining_object = num_piece_player + num_piece_opponent + num_hole;
+
 		if (cursor == 25) {
+			assert(num_remaining_object == 0);
 			const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
-			positions.insert(code);
+			positions.push_back(code);
+			if (_mm_popcnt_u64(positions.size()) == 1) {
+				const auto t1 = std::chrono::system_clock::now();
+				const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count();
+				std::cout << "positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " seconds" << std::endl;
+			}
 			return;
 		}
 
-		const int num_remaining_object = num_piece_player + num_piece_opponent + num_hole;
 
 		if (num_remaining_object + cursor < 25) {
 			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent, num_hole);
@@ -1211,19 +1222,37 @@ public:
 
 	void do_enumerate() {
 
-		const auto start = std::chrono::system_clock::now();
+		t0 = std::chrono::system_clock::now();
+
+		positions.reserve(21'880'262'250ULL);
 
 		position_maker(0, 0, 0, 0, 5, 5, 1);
 		position_maker(0, 0, 0, 0, 5, 4, 1);
 		position_maker(0, 0, 0, 0, 4, 5, 1);
 		position_maker(0, 0, 0, 0, 4, 4, 1);
 
-		const auto end = std::chrono::system_clock::now();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+		const auto t2 = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t2 - t0).count();
 
-		std::cout << elapsed << std::endl;
+		std::cout << "enumerate: " << elapsed << " seconds" << std::endl;
 
 		std::cout << positions.size() << std::endl;
+
+		const auto t3 = std::chrono::system_clock::now();
+
+		std::sort(positions.begin(), positions.end());
+		uint64_t num_unique_positions = 1;
+		for (uint64_t i = 1; i < positions.size(); ++i) {
+			if (positions[i - 1] != positions[i])++num_unique_positions;
+		}
+
+		const auto t4 = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t4 - t3).count();
+
+		std::cout << "sort and count unique positions: " << elapsed << " seconds" << std::endl;
+
+		std::cout << num_unique_positions << std::endl;
+
 
 		//positions.print_all();
 
