@@ -1232,7 +1232,7 @@ public:
 		position_maker(0, 0, 0, 0, 4, 4, 1);
 
 		const auto t2 = std::chrono::system_clock::now();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t2 - t0).count();
+		int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t2 - t0).count();
 
 		std::cout << "enumerate: " << elapsed << " seconds" << std::endl;
 
@@ -1247,7 +1247,7 @@ public:
 		}
 
 		const auto t4 = std::chrono::system_clock::now();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(t4 - t3).count();
+		elapsed = std::chrono::duration_cast<std::chrono::seconds>(t4 - t3).count();
 
 		std::cout << "sort and count unique positions: " << elapsed << " seconds" << std::endl;
 
