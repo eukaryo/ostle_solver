@@ -240,6 +240,30 @@ std::string code2string(const uint64_t code) {
 	return answer;
 }
 
+uint64_t code_symmetry_naive(const int s, uint64_t code) {
+
+	uint64_t bb1 = 0, bb2 = 0, pos = 0;
+	decode_ostle(code, bb1, bb2, pos);
+
+	if (s & 1) {
+		bb1 = horizontal_mirror_5x5_bitboard(bb1);
+		bb2 = horizontal_mirror_5x5_bitboard(bb2);
+		pos = horizontal_mirror_5x5_table[pos];
+	}
+	if (s & 2) {
+		bb1 = vertical_mirror_5x5_bitboard(bb1);
+		bb2 = vertical_mirror_5x5_bitboard(bb2);
+		pos = vertical_mirror_5x5_table[pos];
+	}
+	if (s & 4) {
+		bb1 = transpose_5x5_bitboard(bb1);
+		bb2 = transpose_5x5_bitboard(bb2);
+		pos = transpose_5x5_table[pos];
+	}
+
+	return encode_ostle(bb1, bb2, pos);
+}
+
 uint64_t code_symmetry(const int s, uint64_t code) {
 
 	if (s & 1)code = horizontal_mirror_ostle_5x5_bitboard(code);
@@ -249,14 +273,28 @@ uint64_t code_symmetry(const int s, uint64_t code) {
 	return code;
 }
 
-uint64_t code_unique(uint64_t code) {
+uint64_t code_unique_naive(const uint64_t code) {
+
+	uint64_t answer = code;
+
+	for (int i = 1; i <= 7; ++i) {
+		const uint64_t new_code = code_symmetry_naive(i, code);
+		answer = std::min(answer, new_code);
+	}
+
+	return answer;
+}
+
+uint64_t code_unique(const uint64_t code) {
+
+	uint64_t answer = code;
 
 	for (int i = 1; i <= 7; ++i) {
 		const uint64_t new_code = code_symmetry(i, code);
-		code = std::min(code, new_code);
+		answer = std::min(answer, new_code);
 	}
 
-	return code;
+	return answer;
 }
 
 std::string code_2_unique_string(const uint64_t code) {
@@ -305,6 +343,12 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 		if (bb1 != func_5x5_bitboard(bb1_converted) ||
 			bb2 != func_5x5_bitboard(bb2_converted) ||
 			code != func_ostle_5x5_bitboard(code_converted)) {
+			return false;
+		}
+
+		const uint64_t unique1 = code_unique(code);
+		const uint64_t unique2 = code_unique_naive(code);
+		if (unique1 != unique2) {
 			return false;
 		}
 
@@ -1187,9 +1231,7 @@ private:
 
 	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
-		if (positions.size() == 1'500'000'000ULL)return;
-
-		const int num_remaining_object = num_piece_player + num_piece_opponent;
+		const int num_remaining_object = num_piece_player + num_piece_opponent + (cursor <= pos_hole ? 1 : 0);
 
 		if (cursor == 25) {
 			assert(num_remaining_object == 0);
@@ -1206,13 +1248,16 @@ private:
 			}
 			return;
 		}
+		else {
+			assert(num_remaining_object + cursor < 25 || pos_hole == cursor || num_piece_player + num_piece_opponent > 0);
+		}
 
 		if (pos_hole == cursor) {
 			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 			return;
 		}
 
-		if (num_remaining_object + cursor < ((cursor < pos_hole) ? 24 : 25)) {
+		if (num_remaining_object + cursor < 25) {
 			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 		}
 
@@ -1266,6 +1311,7 @@ private:
 
 		uint64_t num_unique_positions = 1;
 		for (uint64_t i = 1; i < positions.size(); ++i) {
+			assert(positions[i - 1] <= positions[i]);
 			if (positions[i - 1] != positions[i])++num_unique_positions;
 		}
 
@@ -1289,7 +1335,6 @@ public:
 		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
 
 		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
-
 
 		return;
 	}
