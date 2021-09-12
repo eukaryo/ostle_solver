@@ -7,6 +7,8 @@ https://gamemarket.jp/game/76310
 cf:
 http://h1.hara.net.it-chiba.ac.jp/ostle/
 
+※上記のwebサイトも当リポジトリと関係はありません。
+
 ｶﾞﾊﾞｱﾙｶﾓ
 
 ## 局面の全列挙
