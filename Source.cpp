@@ -727,6 +727,22 @@ bool test_move(const uint64_t seed, const int length) {
 	return true;
 }
 
+//void generate_possible_previous_codes(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, std::vector<uint64_t> &codes) {
+//	//入力局面に対して、その直前の局面としてありえた局面を全て求めて、それらのコードを返す。禁じ手や初期局面からの到達可能性は無視して全て生成する。
+//
+//	assert((bb_player & bb_opponent) == 0);
+//	assert((bb_player | bb_opponent | BB_ALL_8X8_5X5) == BB_ALL_8X8_5X5);
+//	assert(pos_hole < 25);
+//	assert(((bb_player | bb_opponent) & (1ULL << pos_2_8x8_5x5_table[pos_hole])) == 0);
+//	assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
+//	assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
+//
+//	codes.clear();
+//
+//
+//}
+
+
 
 
 bool is_checkmate_naive(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const bool visualize = false) {
@@ -1226,8 +1242,12 @@ private:
 
 	std::vector<uint64_t>positions;
 
-	std::chrono::system_clock::time_point t0;
+	std::vector<uint64_t>all_positions;
 
+
+
+
+	std::chrono::system_clock::time_point t0;
 
 	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
@@ -1235,7 +1255,6 @@ private:
 
 		if (cursor == 25) {
 			assert(num_remaining_object == 0);
-//			const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
 			const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
 			positions.push_back(code);
 
@@ -1277,13 +1296,12 @@ private:
 
 		const auto print_time = [&](std::string task_name) {
 			const auto t1 = std::chrono::system_clock::now();
-			int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 			std::cout << "LOG: elapsed time:" << task_name << ": " << elapsed << " milliseconds" << std::endl;
 			t0 = std::chrono::system_clock::now();
 		};
 
 		positions.clear();
-		positions.reserve(500'000'000ULL);
 
 		t0 = std::chrono::system_clock::now();
 
@@ -1291,7 +1309,7 @@ private:
 
 		{
 			const auto t1 = std::chrono::system_clock::now();
-			int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 			std::cout << "result: final positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
 		}
 
@@ -1310,9 +1328,13 @@ private:
 		print_time("parallel quicksort");
 
 		uint64_t num_unique_positions = 1;
+		all_positions.push_back(positions[0]);
 		for (uint64_t i = 1; i < positions.size(); ++i) {
 			assert(positions[i - 1] <= positions[i]);
-			if (positions[i - 1] != positions[i])++num_unique_positions;
+			if (positions[i - 1] != positions[i]) {
+				++num_unique_positions;
+				all_positions.push_back(positions[i]);
+			}
 		}
 
 		print_time("counting unique positions");
@@ -1324,19 +1346,341 @@ private:
 
 public:
 
+	OstleEnumerator_brute_force() {
+		positions.reserve(500'000'000ULL);
+
+		//all_positions.reserve(2'800'000'000ULL);
+		all_positions.reserve(200'000'000ULL);
+	}
+
 	void do_enumerate() {
 
 		const uint64_t holes[6] = { 0,1,2,6,7,12 };
 		uint64_t num_unique_positions = 0;
 
-		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
-		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
-		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
+		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
+		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
+		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
 		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
 
 		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
 
+		assert(num_unique_positions == all_positions.size());
+
+		{
+			const auto t = std::chrono::system_clock::now();
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: elapsed time:sort all_positions: " << elapsed << " milliseconds" << std::endl;
+		}
+
+		{
+			const auto t = std::chrono::system_clock::now();
+			for (uint64_t i = 1; i < all_positions.size(); ++i) {
+				assert(all_positions[i - 1] < all_positions[i]);
+			}
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
+		}
+
+		{
+			const auto t = std::chrono::system_clock::now();
+			uint64_t count_checkmate_position = 0;
+			for (uint64_t i = 0; i < all_positions.size(); ++i) {
+				uint64_t bb1 = 0, bb2 = 0, pos = 0;
+				decode_ostle(all_positions[i], bb1, bb2, pos);
+				if (is_checkmate(bb1, bb2, pos))++count_checkmate_position;
+			}
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
+			std::cout << "result: number of checkmate positions = " << count_checkmate_position << std::endl;
+		}
+
 		return;
+	}
+
+
+	std::vector<uint64_t>all_solutions;
+
+private:
+
+	enum {
+		UNLABELED = 0,
+		WIN = 1,
+		LOSE = 2,
+		SUICIDE = 100
+	};
+	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
+	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
+
+
+
+	void check_all_positions_if_checkmate() {
+
+		assert(all_positions.size() == all_solutions.size());
+
+		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
+
+		const auto t = std::chrono::system_clock::now();
+
+		uint64_t count_checkmate_position = 0;
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			uint64_t bb1 = 0, bb2 = 0, pos = 0;
+			decode_ostle(all_positions[i], bb1, bb2, pos);
+			if (is_checkmate(bb1, bb2, pos)) {
+				all_solutions[i] = SOLUTION_ALL_WIN;
+				++count_checkmate_position;
+			}
+		}
+
+		const double percentage = 100.0 * double(count_checkmate_position) / double(all_positions.size());
+
+		const auto s = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << all_positions.size() <<
+			" (" << percentage << " %), elapsed time = " << elapsed << " milliseconds" << std::endl;
+	}
+
+	uint64_t code2index(const uint64_t code) const {
+		//all_positionsのどれかの値codeを引数にとり、all_positions[i]=codeなるiを探して返す。
+		//all_positionsが昇順にソートされていると仮定して二分探索で求める。
+
+		uint64_t lower = 0, upper = all_positions.size();
+
+		while (lower + 1ULL < upper) {
+			const uint64_t mid = (lower + upper) / 2;
+			if (all_positions[mid] == code)return mid;
+			else if (all_positions[mid] <= code)lower = mid;
+			else upper = mid;
+		}
+
+		assert(all_positions[lower] == code);
+		return lower;
+	}
+
+	uint64_t check_one_position(const uint64_t index) const {
+		//盤面all_positions[index]の全てのノード（禁じ手によって区別される）について勝敗判定を試みる。
+		//返り値は、今回の試行で新たに勝敗判定がなされたなら、更新した判定結果を返す。さもなくば更新されなかった判定結果を返す。
+
+		if (all_solutions[index] == SOLUTION_ALL_WIN ||
+			all_solutions[index] == SOLUTION_ALL_LOSE) {
+			return all_solutions[index];
+		}
+
+		uint64_t next_all_solutions = all_solutions[index];
+
+		//処理がここに到達した時点で、盤面all_positions[index]はcheckmate盤面ではないと仮定する。
+		//言い換えると、予めcheck_all_positions_if_checkmate関数が呼ばれていることを仮定する。
+
+		uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+		decode_ostle(all_positions[index], bb_player, bb_opponent, pos_hole);
+
+		Moves moves, next_moves;
+		generate_moves(bb_player, bb_opponent, pos_hole, moves);
+
+		assert(moves[0] <= 24);
+
+		//まず、各指し手を指した先の局面が勝敗判定されているか調べる。
+		uint8_t outcome[32] = {}, win_num = 0, lose_num = 0, unknown_num = 0, suicide_num = 0;
+		for (uint8_t i = 1; i <= moves[0]; ++i) {
+			uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
+			do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[i]);
+			if (_mm_popcnt_u64(next_bb_player) == 3) {
+				outcome[i] = SUICIDE;
+				++suicide_num;
+				continue;
+			}
+			const uint64_t next_code = code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole));
+			const uint64_t next_index = code2index(next_code);
+
+			if (all_solutions[next_index] == SOLUTION_ALL_WIN) {
+				outcome[i] = LOSE;
+				++lose_num;
+				continue;
+			}
+			if (all_solutions[next_index] == SOLUTION_ALL_LOSE) {
+				outcome[i] = WIN;
+				++win_num;
+				continue;
+			}
+			if (all_solutions[next_index] == 0) {
+				outcome[i] = UNLABELED;
+				++unknown_num;
+				continue;
+			}
+
+			generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
+			int forbidden_index = 0;
+			for (uint8_t j = 1; j <= next_moves[0]; ++j) {
+				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
+				do_move(bb1, bb2, pos, next_moves[i]);
+				if (_mm_popcnt_u64(bb1) == 3)continue;
+				if (bb1 == bb_player && bb2 == bb_opponent && pos == pos_hole) {
+					forbidden_index = j;
+					break;
+				}
+			}
+			const uint64_t next_solution = (all_solutions[next_index] >> (forbidden_index * 2)) % 4;
+			if (next_solution == LOSE) {
+				outcome[i] = WIN;
+				if (++win_num >= 2)break;
+			}
+			else if (next_solution == WIN) {
+				outcome[i] = LOSE;
+				++lose_num;
+			}
+			else {
+				assert(next_solution == UNLABELED);
+				outcome[i] = UNLABELED;
+				++unknown_num;
+			}
+
+		}
+
+		//2つ以上の指し手が勝利をもたらすなら、禁じ手がどれであろうと勝利が確定する。
+		if (win_num >= 2) {
+			return SOLUTION_ALL_WIN;
+		}
+
+		assert(int(win_num) + int(lose_num) + int(unknown_num) + int(suicide_num) == int(moves[0]));
+
+		//1つの指し手Xだけが勝利確定手の場合
+		if (win_num == 1) {
+			for (uint8_t i = 0; i <= moves[0]; ++i) {
+				const uint8_t present_solution = uint8_t((all_solutions[index] >> (i * 2)) % 4);
+				if (i == 0 || outcome[i] != WIN) {
+					//禁じ手が存在しないか、禁じ手がX以外である場合は、（Xを指せばいいので）勝利が確定する。
+					assert(present_solution == UNLABELED || present_solution == WIN);
+					if (present_solution == UNLABELED) {
+						next_all_solutions |= uint64_t(WIN) << (i * 2);
+					}
+				}
+				else {
+					//Xが禁じ手である場合、X以外の指し手が全て敗北確定ならば「Xが禁じ手である場合は敗北」と確定する。さもなくば未確定である。
+					if (unknown_num == 0) {
+						assert(present_solution == UNLABELED || present_solution == LOSE);
+						if (present_solution == UNLABELED) {
+							next_all_solutions |= uint64_t(LOSE) << (i * 2);
+						}
+					}
+					else {
+						assert(present_solution == UNLABELED);
+					}
+				}
+			}
+			return next_all_solutions;
+		}
+
+		//全ての指し手が敗北確定なら、禁じ手がどれであろうと敗北が確定する。
+		if (win_num == 0 && unknown_num == 0) {
+			return SOLUTION_ALL_LOSE;
+		}
+
+		//ただ1つの指し手Xが未確定で、それ以外全ての指し手が敗北確定の場合
+		if (win_num == 0 && unknown_num == 1) {
+			for (uint8_t i = 0; i <= moves[0]; ++i) {
+				const uint64_t present_solution = (all_solutions[index] >> (i * 2)) % 4;
+				if (i == 0) {
+					//禁じ手が存在しない場合は未確定。
+					assert(present_solution == UNLABELED);
+					continue;
+				}
+				else if (outcome[i] == UNLABELED) {
+					//Xが禁じ手である場合は敗北が確定する。
+					assert(present_solution == UNLABELED || present_solution == LOSE);
+					if (present_solution == UNLABELED) {
+						next_all_solutions |= uint64_t(LOSE) << (i * 2);
+					}
+				}
+				else {
+					//X以外が禁じ手である場合は、（Xを指せるので）未確定。
+
+					assert(outcome[i] == LOSE || outcome[i] == SUICIDE);
+					assert(present_solution == UNLABELED);
+				}
+			}
+			return next_all_solutions;
+		}
+
+		//ここに到達したということは、勝利確定手が見つかっておらず、かつ未確定の指し手が2つ以上存在する。
+		assert(win_num == 0 && unknown_num >= 2);
+
+		//その場合は禁じ手がどれであろうと未確定である。
+		assert(all_solutions[index] == 0);
+		return 0;
+	}
+
+
+public:
+
+	void retrograde_analysis() {
+
+		all_solutions.clear();
+		all_solutions.resize(all_positions.size());
+
+		check_all_positions_if_checkmate();
+
+
+		for(int iteration = 1;; ++iteration) {
+			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
+			const auto t = std::chrono::system_clock::now();
+
+			uint64_t updated_num = 0;
+			for (uint64_t i = 0; i < all_positions.size(); ++i) {
+				const uint64_t next_solution = check_one_position(i);
+				updated_num += (next_solution != all_solutions[i]) ? 1 : 0;
+				all_solutions[i] = next_solution;
+			}
+
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+			if (updated_num == 0)break;
+		}
+	}
+
+	void retrograde_analysis_parallel() {
+
+		all_solutions.clear();
+		all_solutions.resize(all_positions.size());
+
+		constexpr uint64_t TASK_SIZE = 1'000'000ULL;
+
+		check_all_positions_if_checkmate();
+
+
+		for (int iteration = 1;; ++iteration) {
+			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
+			const auto t = std::chrono::system_clock::now();
+
+			uint64_t updated_num = 0;
+
+			for (uint64_t t = 0; t < all_positions.size(); t += TASK_SIZE) {
+				std::vector<uint64_t>next_solutions(std::min(TASK_SIZE, all_positions.size() - t));
+
+				const int64_t start = t, end = t + next_solutions.size();
+
+#pragma omp parallel for schedule(guided)
+				for (int64_t i = start; i < end; ++i) {
+					const uint64_t next_solution = check_one_position(i);
+					next_solutions[i - start] = next_solution;
+				}
+
+				for (int64_t i = start; i < end; ++i) {
+					updated_num += (next_solutions[i - start] != all_solutions[i]) ? 1 : 0;
+					all_solutions[i] = next_solutions[i - start];
+				}
+
+			}
+
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+			if (updated_num == 0)break;
+		}
 	}
 
 };
@@ -1356,6 +1700,14 @@ int main(int argc, char *argv[]) {
 	OstleEnumerator_brute_force e;
 	e.do_enumerate();
 
+	e.retrograde_analysis();
+	const auto result1 = e.all_solutions;
+
+	e.retrograde_analysis_parallel();
+	const auto result2 = e.all_solutions;
+
+	assert(result1.size() == result2.size());
+	for (uint64_t i = 0; i < result1.size(); ++i)assert(result1[i] == result2[i]);
 
 	return 0;
 }
