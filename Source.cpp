@@ -1473,7 +1473,7 @@ private:
 			for (uint8_t i = 0; i <= moves[0]; ++i) {
 				const uint64_t present_solution = (all_solutions[index] >> (i * 2)) % 4;
 				if (i == 0) {
-					//禁じ手が存在しない場合は未確定。
+					//禁じ手が存在しない場合は（Xを指せるので）未確定。
 					assert(present_solution == UNLABELED);
 					continue;
 				}
@@ -1485,7 +1485,7 @@ private:
 					}
 				}
 				else {
-					//X以外が禁じ手である場合は、（Xを指せるので）未確定。
+					//X以外が禁じ手である場合は（Xを指せるので）未確定。
 
 					assert(outcome[i] == LOSE || outcome[i] == SUICIDE);
 					assert(present_solution == UNLABELED);
