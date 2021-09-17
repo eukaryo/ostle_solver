@@ -511,8 +511,8 @@ void init_move_tables() {
 					assert(undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][0] == 0);
 					assert(undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][1] == 0);
 
-					undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][0] = d;
-					undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][1] = e;
+					undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][0] = uint8_t(d);
+					undo_move_table[a][b][c][bb_after_player][bb_after_opponent][auxiliary][1] = uint8_t(e);
 				}
 			}
 		}
@@ -527,6 +527,8 @@ void generate_moves(const uint64_t bb_player, const uint64_t bb_opponent, const 
 	assert((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent);
 	assert((bb_player & bb_opponent) == 0);
 	assert(pos_hole < 25);
+	assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
+	assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
 
 	moves[0] = 0;
 
@@ -567,6 +569,8 @@ void generate_moves(const uint64_t bb_player, const uint64_t bb_opponent, const 
 uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, const uint8_t move) {
 	//moveを指して、他の引数を変更する。コマをいくつ押したかと場外に何が落ちたかを意味する補助情報を返り値とする。補助情報はundoのとき必要になる。
 
+	assert(move % 32 < 25 && move / 32 < 4);
+
 	//穴を動かす手の場合。合法手であることは生成関数が保証しているので、ただ動かして終了。
 	if (pos_hole == (move % 32)) {
 		pos_hole += pos_diff[move / 32];
@@ -579,13 +583,20 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 
 		//横方向に動かす手の場合
 
-		const auto index1_dir = (move / 32) % 2;
-		const auto index2_pos = ((move % 32) % 5);
-		const auto y_pos = (move % 32) / 5;
-		const auto offset_bb = y_pos * 8;
-		const auto index3_hole = oneline_bb2index[(bb_hole >> offset_bb) % 256];
-		const auto index4_player = (bb_player >> offset_bb) % 256;
-		const auto index5_opponent = (bb_opponent >> offset_bb) % 256;
+		const int index1_dir = (move / 32) % 2;
+		const int index2_pos = ((move % 32) % 5);
+		const int y_pos = (move % 32) / 5;
+		const int offset_bb = y_pos * 8;
+		const uint8_t index3_hole = oneline_bb2index[(bb_hole >> offset_bb) % 256];
+		const uint64_t index4_player = (bb_player >> offset_bb) % 256;
+		const uint64_t index5_opponent = (bb_opponent >> offset_bb) % 256;
+
+		assert(0 <= index1_dir && index1_dir < 2);
+		assert(0 <= index2_pos && index2_pos < 5);
+		assert(0 <= y_pos && y_pos < 5);
+		assert(index3_hole < 6);
+		assert(index4_player < 32);
+		assert(index5_opponent < 32);
 
 		bb_player =
 			(bb_player & (BB_ALL_8X8_5X5 ^ BB_ONELINE_HORIZONTAL_8X8_5X5[y_pos])) |
@@ -601,12 +612,19 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 		
 		//縦方向に動かす手の場合
 
-		const auto index1_dir = (move / 32) % 2;
-		const auto index2_pos = ((move % 32) / 5);
-		const auto x_pos = (move % 32) % 5;
-		const auto index3_hole = oneline_bb2index[pext_intrinsics(bb_hole, BB_ONELINE_VERTICAL_8X8_5X5[x_pos])];
-		const auto index4_player = pext_intrinsics(bb_player, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
-		const auto index5_opponent = pext_intrinsics(bb_opponent, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+		const int index1_dir = (move / 32) % 2;
+		const int index2_pos = ((move % 32) / 5);
+		const int x_pos = (move % 32) % 5;
+		const uint8_t index3_hole = oneline_bb2index[pext_intrinsics(bb_hole, BB_ONELINE_VERTICAL_8X8_5X5[x_pos])];
+		const uint64_t index4_player = pext_intrinsics(bb_player, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+		const uint64_t index5_opponent = pext_intrinsics(bb_opponent, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+
+		assert(0 <= index1_dir && index1_dir < 2);
+		assert(0 <= index2_pos && index2_pos < 5);
+		assert(0 <= x_pos && x_pos < 5);
+		assert(index3_hole < 6);
+		assert(index4_player < 32);
+		assert(index5_opponent < 32);
 
 		bb_player =
 			(bb_player & (BB_ALL_8X8_5X5 ^ BB_ONELINE_VERTICAL_8X8_5X5[x_pos])) |
@@ -626,6 +644,9 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 void undo_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, const uint8_t move, const uint8_t auxiliary) {
 	//moveを指したあとの状態だと仮定してmoveを指す前に戻す。
 
+	assert(move % 32 < 25 && move / 32 < 4);
+	assert(auxiliary < 6 || auxiliary == 0xFF);
+
 	//穴を動かす手の場合。合法手であることは生成関数が保証しているので、ただ動かして終了。
 	if (auxiliary == 0xFF) {
 		pos_hole -= pos_diff[move / 32];
@@ -638,13 +659,20 @@ void undo_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, c
 
 		//横方向に動かす手の場合
 
-		const auto index1_dir = (move / 32) % 2;
-		const auto index2_pos = ((move % 32) % 5);
-		const auto y_pos = (move % 32) / 5;
-		const auto offset_bb = y_pos * 8;
-		const auto index3_hole = oneline_bb2index[(bb_hole >> offset_bb) % 256];
-		const auto index4_player = (bb_player >> offset_bb) % 256;
-		const auto index5_opponent = (bb_opponent >> offset_bb) % 256;
+		const int index1_dir = (move / 32) % 2;
+		const int index2_pos = ((move % 32) % 5);
+		const int y_pos = (move % 32) / 5;
+		const int offset_bb = y_pos * 8;
+		const uint8_t index3_hole = oneline_bb2index[(bb_hole >> offset_bb) % 256];
+		const uint64_t index4_player = (bb_player >> offset_bb) % 256;
+		const uint64_t index5_opponent = (bb_opponent >> offset_bb) % 256;
+
+		assert(0 <= index1_dir && index1_dir < 2);
+		assert(0 <= index2_pos && index2_pos < 5);
+		assert(0 <= y_pos && y_pos < 5);
+		assert(index3_hole < 6);
+		assert(index4_player < 32);
+		assert(index5_opponent < 32);
 
 		bb_player =
 			(bb_player & (BB_ALL_8X8_5X5 ^ BB_ONELINE_HORIZONTAL_8X8_5X5[y_pos])) |
@@ -660,12 +688,19 @@ void undo_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, c
 
 		//縦方向に動かす手の場合
 
-		const auto index1_dir = (move / 32) % 2;
-		const auto index2_pos = ((move % 32) / 5);
-		const auto x_pos = (move % 32) % 5;
-		const auto index3_hole = oneline_bb2index[pext_intrinsics(bb_hole, BB_ONELINE_VERTICAL_8X8_5X5[x_pos])];
-		const auto index4_player = pext_intrinsics(bb_player, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
-		const auto index5_opponent = pext_intrinsics(bb_opponent, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+		const int index1_dir = (move / 32) % 2;
+		const int index2_pos = ((move % 32) / 5);
+		const int x_pos = (move % 32) % 5;
+		const uint8_t index3_hole = oneline_bb2index[pext_intrinsics(bb_hole, BB_ONELINE_VERTICAL_8X8_5X5[x_pos])];
+		const uint64_t index4_player = pext_intrinsics(bb_player, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+		const uint64_t index5_opponent = pext_intrinsics(bb_opponent, BB_ONELINE_VERTICAL_8X8_5X5[x_pos]);
+
+		assert(0 <= index1_dir && index1_dir < 2);
+		assert(0 <= index2_pos && index2_pos < 5);
+		assert(0 <= x_pos && x_pos < 5);
+		assert(index3_hole < 6);
+		assert(index4_player < 32);
+		assert(index5_opponent < 32);
 
 		bb_player =
 			(bb_player & (BB_ALL_8X8_5X5 ^ BB_ONELINE_VERTICAL_8X8_5X5[x_pos])) |
@@ -726,22 +761,6 @@ bool test_move(const uint64_t seed, const int length) {
 	std::cout << "test clear!" << std::endl;
 	return true;
 }
-
-//void generate_possible_previous_codes(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, std::vector<uint64_t> &codes) {
-//	//入力局面に対して、その直前の局面としてありえた局面を全て求めて、それらのコードを返す。禁じ手や初期局面からの到達可能性は無視して全て生成する。
-//
-//	assert((bb_player & bb_opponent) == 0);
-//	assert((bb_player | bb_opponent | BB_ALL_8X8_5X5) == BB_ALL_8X8_5X5);
-//	assert(pos_hole < 25);
-//	assert(((bb_player | bb_opponent) & (1ULL << pos_2_8x8_5x5_table[pos_hole])) == 0);
-//	assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
-//	assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
-//
-//	codes.clear();
-//
-//
-//}
-
 
 
 
@@ -905,349 +924,153 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 
 
 
-class HashTable {
+class Encoder_AES {
+
+	//cf: https://gist.github.com/acapola/d5b940da024080dfaf5f
 
 private:
 
-	uint64_t shiftxor_forward(uint64_t x, int s) {
-		return x ^ (x >> s);
+	__m128i key_schedule[20];//the expanded key
+
+	__m128i aes_128_key_expansion(__m128i key, __m128i keygened) const {
+		keygened = _mm_shuffle_epi32(keygened, _MM_SHUFFLE(3, 3, 3, 3));
+		key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+		key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+		key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+		return _mm_xor_si128(key, keygened);
 	}
 
-	uint64_t split_mix_64(uint64_t x) {
+	void aes128_load_keys() {
+		key_schedule[1] = aes_128_key_expansion(key_schedule[0], _mm_aeskeygenassist_si128(key_schedule[0], 0x01));
+		key_schedule[2] = aes_128_key_expansion(key_schedule[1], _mm_aeskeygenassist_si128(key_schedule[1], 0x02));
+		key_schedule[3] = aes_128_key_expansion(key_schedule[2], _mm_aeskeygenassist_si128(key_schedule[2], 0x04));
+		key_schedule[4] = aes_128_key_expansion(key_schedule[3], _mm_aeskeygenassist_si128(key_schedule[3], 0x08));
+		key_schedule[5] = aes_128_key_expansion(key_schedule[4], _mm_aeskeygenassist_si128(key_schedule[4], 0x10));
+		key_schedule[6] = aes_128_key_expansion(key_schedule[5], _mm_aeskeygenassist_si128(key_schedule[5], 0x20));
+		key_schedule[7] = aes_128_key_expansion(key_schedule[6], _mm_aeskeygenassist_si128(key_schedule[6], 0x40));
+		key_schedule[8] = aes_128_key_expansion(key_schedule[7], _mm_aeskeygenassist_si128(key_schedule[7], 0x80));
+		key_schedule[9] = aes_128_key_expansion(key_schedule[8], _mm_aeskeygenassist_si128(key_schedule[8], 0x1B));
+		key_schedule[10] = aes_128_key_expansion(key_schedule[9], _mm_aeskeygenassist_si128(key_schedule[9], 0x36));
 
-		// SplitMix64
-		// http://prng.di.unimi.it/splitmix64.c
+		// generate decryption keys in reverse order.
+		// k[10] is shared by last encryption and first decryption rounds
+		// k[0] is shared by first encryption round and last decryption round (and is the original user key)
+		// For some implementation reasons, decryption key schedule is NOT the encryption key schedule in reverse order
 
-		x += 0x9e3779b97f4a7c15ULL;
-		x = shiftxor_forward(x, 30);
-		x *= 0xbf58476d1ce4e5b9ULL;
-		x = shiftxor_forward(x, 27);
-		x *= 0x94d049bb133111ebULL;
-		x = shiftxor_forward(x, 31);
-		return x;
+		key_schedule[11] = _mm_aesimc_si128(key_schedule[9]);
+		key_schedule[12] = _mm_aesimc_si128(key_schedule[8]);
+		key_schedule[13] = _mm_aesimc_si128(key_schedule[7]);
+		key_schedule[14] = _mm_aesimc_si128(key_schedule[6]);
+		key_schedule[15] = _mm_aesimc_si128(key_schedule[5]);
+		key_schedule[16] = _mm_aesimc_si128(key_schedule[4]);
+		key_schedule[17] = _mm_aesimc_si128(key_schedule[3]);
+		key_schedule[18] = _mm_aesimc_si128(key_schedule[2]);
+		key_schedule[19] = _mm_aesimc_si128(key_schedule[1]);
 	}
 
-	uint64_t shiftxor_backward(uint64_t x, int s) {
-		if (s >= 32)return x ^ (x >> s);
-		for (uint64_t mask = ~(0xFFFF'FFFF'FFFF'FFFFULL >> s); mask; mask >>= s) {
-			uint64_t y = x & mask;
-			uint64_t z = y >> s;
-			x = x ^ z;
-		}
-		return x;
+	__m128i DO_ENC_BLOCK(__m128i m) const {
+		m = _mm_xor_si128(m, key_schedule[0]);
+		m = _mm_aesenc_si128(m, key_schedule[1]);
+		m = _mm_aesenc_si128(m, key_schedule[2]);
+		m = _mm_aesenc_si128(m, key_schedule[3]);
+		m = _mm_aesenc_si128(m, key_schedule[4]);
+		m = _mm_aesenc_si128(m, key_schedule[5]);
+		m = _mm_aesenc_si128(m, key_schedule[6]);
+		m = _mm_aesenc_si128(m, key_schedule[7]);
+		m = _mm_aesenc_si128(m, key_schedule[8]);
+		m = _mm_aesenc_si128(m, key_schedule[9]);
+		m = _mm_aesenclast_si128(m, key_schedule[10]);
+		return m;
 	}
 
-	uint64_t split_mix_64_inverse(uint64_t x) {
-		x = shiftxor_backward(x, 31);
-		x *= 0x319642b2d24d8ec3ULL;
-		x = shiftxor_backward(x, 27);
-		x *= 0x96de1b173f119089ULL;
-		x = shiftxor_backward(x, 30);
-		x -= 0x9e3779b97f4a7c15ULL;
-		return x;
-	}
+	//__m128i DO_DEC_BLOCK(__m128i m) const {
+	//	m = _mm_xor_si128(m, key_schedule[10]);
+	//	m = _mm_aesdec_si128(m, key_schedule[11]);
+	//	m = _mm_aesdec_si128(m, key_schedule[12]);
+	//	m = _mm_aesdec_si128(m, key_schedule[13]);
+	//	m = _mm_aesdec_si128(m, key_schedule[14]);
+	//	m = _mm_aesdec_si128(m, key_schedule[15]);
+	//	m = _mm_aesdec_si128(m, key_schedule[16]);
+	//	m = _mm_aesdec_si128(m, key_schedule[17]);
+	//	m = _mm_aesdec_si128(m, key_schedule[18]);
+	//	m = _mm_aesdec_si128(m, key_schedule[19]);
+	//	m = _mm_aesdeclast_si128(m, key_schedule[0]);
+	//	return m;
+	//}
 
-	std::vector<uint64_t>hash_table;
-	std::vector<uint8_t>signature_table;
-	int64_t table_bitlen; // hash_tableの現在の容量は2^(table_bitlen)
-	int64_t population;
+	//void aes128_load_key(const int8_t * const enc_key) {
+	//	key_schedule[0] = _mm_loadu_si128((const __m128i*) enc_key);
+	//	aes128_load_keys();
+	//}
 
-	void extend() {
-
-		std::cout << "extend: hash_table.size() = " << hash_table.size() << ", population = " << population << std::endl;
-
-		std::vector<uint64_t>old_data(population);
-		int64_t count = 0;
-		for (uint64_t i = 0; i < signature_table.size(); ++i) {
-			if (signature_table[i] == 0x80)continue;
-			old_data[count++] = hash_table[i];
-		}
-
-		assert(count == population);
-
-		for (; table_bitlen < 63;) {
-
-			++table_bitlen;
-
-			const uint64_t bitmask = (1ULL << table_bitlen) - 1;
-
-			bool is_hopeless = false;
-
-			//度数表を作る。この時点で、32を超える配列要素があれば、insert失敗するのでcontinueする。
-			std::vector<uint8_t>count((1ULL << table_bitlen), 0);
-			for (int64_t i = 0; i < population; ++i) {
-				if (++count[old_data[i] & bitmask] > 32) {
-					is_hopeless = true;
-					break;
-				}
-			}
-			if (is_hopeless)continue;
-
-			//各添字番号について、（Robin Hood Hashingでinsertしたときに）その要素が実際に格納され始める位置を求める。
-			//32以上離れることがあれば、それはinsert失敗を意味するのでcontinueする。
-
-			std::vector<uint8_t>start_pos((1ULL << table_bitlen), 0);
-			for (uint64_t i = 1; i <= bitmask; ++i) {
-				start_pos[i] = uint8_t(std::max(uint64_t(start_pos[i - 1]) + (i - 1) + uint64_t(count[i - 1]), i) - i); // main DP
-				if (start_pos[i] >= 32) {
-					is_hopeless = true;
-					break;
-				}
-			}
-			if (is_hopeless)continue;
-			if (uint64_t(start_pos[bitmask]) + bitmask + uint64_t(count[bitmask]) >= (1ULL << table_bitlen) + 32)continue;
-
-			//
-			//insertが失敗しないことが分かったので、ハッシュテーブルを構築する。
-			//
-
-			const uint64_t N = (1ULL << table_bitlen) + 31;
-			hash_table.resize(N);
-			signature_table.resize(N);
-			for (int i = 0; i < N; ++i) {
-				hash_table[i] = 0;
-				signature_table[i] = 0x80;
-			}
-
-			for (int i = 0; i < population; ++i) {
-				const uint64_t hashcode = old_data[i] & bitmask;
-				hash_table[uint64_t(start_pos[hashcode]) + hashcode] = old_data[i];
-				signature_table[uint64_t(start_pos[hashcode]) + hashcode] = uint8_t(old_data[i] >> 57);
-				assert(start_pos[hashcode] < 32ULL);
-				++start_pos[hashcode];
-			}
-
-			return;
-		}
-
-		std::cout << "error: failed to extend a hashtable" << std::endl;
-		std::exit(EXIT_FAILURE);
+	void aes128_load_key(const uint64_t enc_key) {
+		key_schedule[0] = _mm_cvtsi64_si128(enc_key);
+		aes128_load_keys();
 	}
 
 public:
 
-	HashTable(const uint64_t bitlen) {
-		table_bitlen = bitlen;
+	//Encoder_AES(const int8_t * const enc_key) {
+	//	aes128_load_key(enc_key);
+	//}
 
-		hash_table = std::vector<uint64_t>(((1ULL << table_bitlen) + 31), 0);
-		signature_table = std::vector<uint8_t>((1ULL << table_bitlen) + 31, 0x80);
-		population = 0;
+	Encoder_AES(const uint64_t enc_key) {
+		aes128_load_key(enc_key);
 	}
 
-	HashTable() :HashTable(8) {}
+	Encoder_AES() : Encoder_AES(0ULL) {}
 
-	void clear() {
-		table_bitlen = 8;
+	//void aes128_enc(int8_t *plain_text, int8_t *cipher_text) {
+	//	const __m128i m = _mm_loadu_si128((__m128i *) plain_text);
+	//	const __m128i n = DO_ENC_BLOCK(m);
+	//	_mm_storeu_si128((__m128i *) cipher_text, n);
+	//}
 
-		hash_table = std::vector<uint64_t>(((1ULL << table_bitlen) + 31), 0);
-		signature_table = std::vector<uint8_t>((1ULL << table_bitlen) + 31, 0x80);
-		population = 0;
+	//void aes128_dec(int8_t *cipher_text, int8_t *plain_text) {
+	//	const __m128i m = _mm_loadu_si128((__m128i *) cipher_text);
+	//	const __m128i n = DO_DEC_BLOCK(m);
+	//	_mm_storeu_si128((__m128i *) plain_text, n);
+	//}
+
+	uint64_t aes128_enc(const uint64_t plain_text) const {
+		const __m128i m = _mm_cvtsi64_si128(plain_text);
+		const __m128i n = DO_ENC_BLOCK(m);
+		return _mm_cvtsi128_si64(n);
 	}
 
-	int64_t size() {
-		return population;
-	}
-
-	void insert(const uint64_t entry) {
-
-		//引数の情報をハッシュテーブルに格納する、またはアップデートする。
-		//衝突処理はオープンアドレス法として、indexを1ずつ増やす。Robin Hood Hashingは採用しない。本来のindexが埋まっていたら最大31まで増やすことを許容する。
-		//格納もアップデートもできなかったらハッシュテーブルの大きさを倍にしてinsertしなおす。
-
-		const uint64_t hashcode = split_mix_64(entry);
-		const uint64_t index = hashcode & ((1ULL << table_bitlen) - 1);
-		const uint8_t signature = uint8_t(hashcode >> 57);
-
-		__m256i query_signature = _mm256_set1_epi8(signature);
-		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[index]);
-
-		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
-
-		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
-		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
-
-		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
-
-		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
-		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
-
-		//引数のエントリが既に格納されていれば、何もせずreturnする。
-		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
-			const uint64_t pos = index + i;
-			if (hash_table[pos] == hashcode)return;
-		}
-
-		//空白エントリがあれば、（その手前に同じエントリはなかったので）、最初に見つけた空白エントリに代入して終了。
-		uint32_t i = 0;
-		if (bitscan_forward64(is_empty, &i)) {
-
-			const uint64_t pos = index + i;
-			signature_table[pos] = signature;
-			hash_table[pos] = hashcode;
-			++population;
-			return;
-		}
-		
-		//ハッシュテーブルが詰まっていて代入できなかったので、リハッシュして再試行する。
-		extend();
-		insert(entry);
-	}
-
-	bool find(const uint64_t entry) {
-
-		//ハッシュテーブルに引数局面の情報があるか調べて、あればtrueを返し、なければfalseを返す。
-
-		//ナイーブな処理手順では、[index]から順番になめていって所望の局面かどうかを調べていき、所望の局面を得るか空白エントリに当たったら終了する。
-		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
-
-		const uint64_t hashcode = split_mix_64(entry);
-		const uint64_t index = hashcode & ((1ULL << table_bitlen) - 1);
-		const uint8_t signature = uint8_t(hashcode >> 57);
-
-		__m256i query_signature = _mm256_set1_epi8(signature);
-		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[index]);
-
-		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
-
-		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
-		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
-
-		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
-
-		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
-		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
-
-		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
-			const uint64_t pos = index + i;
-			if (hash_table[pos] == hashcode)return true;
-		}
-		return false;
-	}
-
-	bool get(uint64_t index, uint64_t &dest) {
-		if (index >= signature_table.size())return false;
-		if (signature_table[index] == 0x80)return false;
-		dest = split_mix_64_inverse(hash_table[index]);
-		return true;
-	}
-
-	void print_all() {
-		for (uint64_t i = 0; i < signature_table.size(); ++i) {
-			if (signature_table[i] == 0x80)continue;
-			const uint64_t code = split_mix_64_inverse(hash_table[i]);
-			const std::string s = code_2_unique_string(code);
-			std::cout << s << std::endl;
-		}
-	}
-};
-
-template<bool mercy>class OstleEnumerator_search_based {
-	
-	//mercy: 勝利できる手を見逃さないと辿り着けない局面を列挙するかどうか。
-
-	HashTable searched_position;
-
-	HashTable unsearched_position;
-
-	Moves moves[128];
-
-
-	void search(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int depth) {
-
-		assert((bb_player & bb_opponent) == 0);
-		assert((bb_player | bb_opponent | BB_ALL_8X8_5X5) == BB_ALL_8X8_5X5);
-		assert(pos_hole < 25);
-		assert(((bb_player | bb_opponent) & (1ULL << pos_2_8x8_5x5_table[pos_hole])) == 0);
-		assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
-		assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
-
-		const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
-
-		if (searched_position.find(code)) {
-			return;
-		}
-
-		if (mercy == false) {
-			if (is_checkmate(bb_player, bb_opponent, pos_hole)) {
-				searched_position.insert(code);
-				return;
-			}
-		}
-
-		if (depth <= 0) {
-			unsearched_position.insert(code);
-			return;
-		}
-
-		searched_position.insert(code);
-
-		generate_moves(bb_player, bb_opponent, pos_hole, moves[depth]);
-
-		for (int i = moves[depth][0]; i; --i) {
-			uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
-			do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[depth][i]);
-			if (_mm_popcnt_u64(next_bb_player) == 3)continue;
-			if (mercy == true) {
-				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
-			}
-			search(next_bb_opponent, next_bb_player, next_pos_hole, depth - 1);
-		}
-	}
-
-public:
-
-	void do_enumerate() {
-
-		const uint64_t initial_code = code_unique(encode_ostle(0b00011111ULL, 0b00011111'00000000'00000000'00000000'00000000ULL, 12));
-
-		std::vector<uint64_t>task{ initial_code };
-
-		for (uint64_t iteration = 1; task.size() > 0; ++iteration) {
-
-			for (const uint64_t code : task) {
-				uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
-				decode_ostle(code, bb_player, bb_opponent, pos_hole);
-				search(bb_player, bb_opponent, pos_hole, 100);
-			}
-
-			task.clear();
-
-			for (uint64_t i = 0; i < unsearched_position.size(); ++i) {
-				uint64_t code = 0;
-				if (!unsearched_position.get(i, code))continue;
-				if (searched_position.find(code))continue;
-				task.push_back(code);
-			}
-
-			if (task.size() == 0)break;
-
-			unsearched_position.clear();
-		}
-
-
-		std::cout << searched_position.size() << std::endl;
-
-		searched_position.print_all();
-
-		return;
+	__m128i aes128_enc(const uint64_t plain_text_1, const uint64_t plain_text_2) const {
+		const __m128i m = _mm_set_epi64x(plain_text_1, plain_text_2);
+		const __m128i n = DO_ENC_BLOCK(m);
+		return n;
 	}
 };
 
 
-class OstleEnumerator_brute_force {
+template<bool USE_HASH_TABLE, bool PARALLEL>class OstleEnumerator {
 
 private:
-
-	//HashTable positions;
 
 	std::vector<uint64_t>positions;
 
 	std::vector<uint64_t>all_positions;
 
+	std::vector<uint64_t>all_solutions;
 
+	std::vector<uint8_t>signature_table;
 
+	Encoder_AES hash_func;
 
-	std::chrono::system_clock::time_point t0;
+	int num_start_piece;
+
+	enum {
+		UNLABELED = 0,
+		WIN = 1,
+		LOSE = 2,
+		SUICIDE = 100
+	};
+
+	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
+	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
 
 	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
@@ -1257,14 +1080,6 @@ private:
 			assert(num_remaining_object == 0);
 			const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
 			positions.push_back(code);
-
-			if (_mm_popcnt_u64(positions.size()) == 1) {
-				const auto t1 = std::chrono::system_clock::now();
-				const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-				if (elapsed >= 2000) {
-					std::cout << "LOG: positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
-				}
-			}
 			return;
 		}
 		else {
@@ -1292,161 +1107,197 @@ private:
 
 	uint64_t position_maker_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent) {
 
-		std::cout << "LOG: start: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ")" << std::endl;
-
-		const auto print_time = [&](std::string task_name) {
-			const auto t1 = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-			std::cout << "LOG: elapsed time:" << task_name << ": " << elapsed << " milliseconds" << std::endl;
-			t0 = std::chrono::system_clock::now();
-		};
-
 		positions.clear();
-
-		t0 = std::chrono::system_clock::now();
-
 		position_maker(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
 
-		{
-			const auto t1 = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-			std::cout << "result: final positions.size() == " << positions.size() << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
-		}
-
-		print_time("position_maker");
-
 		const int64_t siz = positions.size();
+
+		if (PARALLEL) {
 #pragma omp parallel for
-		for (int64_t i = 0; i < siz; ++i) {
-			positions[i] = code_unique(positions[i]);
-		}
-
-		print_time("fmap code_unique");
-
-		std::sort(std::execution::par, positions.begin(), positions.end());
-
-		print_time("parallel quicksort");
-
-		uint64_t num_unique_positions = 1;
-		all_positions.push_back(positions[0]);
-		for (uint64_t i = 1; i < positions.size(); ++i) {
-			assert(positions[i - 1] <= positions[i]);
-			if (positions[i - 1] != positions[i]) {
-				++num_unique_positions;
-				all_positions.push_back(positions[i]);
+			for (int64_t i = 0; i < siz; ++i) {
+				positions[i] = code_unique(positions[i]);
 			}
+			std::sort(std::execution::par, positions.begin(), positions.end());
+		}
+		else {
+			for (uint64_t i = 0; i < positions.size(); ++i) {
+				positions[i] = code_unique(positions[i]);
+			}
+			std::sort(std::execution::seq, positions.begin(), positions.end());
 		}
 
-		print_time("counting unique positions");
+		const auto result = std::unique(positions.begin(), positions.end());
+		positions.erase(result, positions.end());
+		std::copy(positions.begin(), positions.end(), std::back_inserter(all_positions));
 
-		std::cout << "result: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ") = " << num_unique_positions << std::endl;
+		std::cout << "result: position_maker_root(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << "): "
+			<< siz << " positions; " << positions.size() << " unique positions." << std::endl;
 
-		return num_unique_positions;
+		return positions.size();
 	}
 
-public:
+	bool constract_hashtable_if_hashable(const uint64_t hash_length, const uint64_t hash_seed) {
+		//ハッシュテーブルの長さとハッシュ関数のseed値を引数に取り、all_positionsがそのハッシュテーブルに収まるかどうか調べる。
+		//収まらないならばfalseを返す。収まるならば、ハッシュテーブルを実際に構築してからtrueを返す。
 
-	OstleEnumerator_brute_force() {
-		positions.reserve(500'000'000ULL);
+		assert(USE_HASH_TABLE == true);
 
-		//all_positions.reserve(2'800'000'000ULL);
-		all_positions.reserve(200'000'000ULL);
-	}
+		//hash_lengthは2^32未満でなければならないが、2べき数でなくてもよい。
+		assert(hash_length < (1ULL << 32));
 
-	void do_enumerate() {
+		if (hash_length < all_positions.size())return false;
 
-		const uint64_t holes[6] = { 0,1,2,6,7,12 };
-		uint64_t num_unique_positions = 0;
+		//key observation:
+		//エントリeを[0,2^32)のハッシュ値h(e)に一様ランダムに写像できたならば、
+		//((hash_length * h(e)) >> 32) はeを[0,hash_length)に一様ランダムに写像するものである。（整数除算命令を用いずに！）
+		// cf: https://github.com/official-stockfish/Stockfish/commit/2198cd0524574f0d9df8c0ec9aaf14ad8c94402b
 
-		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
-		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
-		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
-		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
+		hash_func = Encoder_AES(hash_seed);
 
-		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
-
-		assert(num_unique_positions == all_positions.size());
-
-		{
-			const auto t = std::chrono::system_clock::now();
-			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
-			const auto s = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: elapsed time:sort all_positions: " << elapsed << " milliseconds" << std::endl;
-		}
-
-		{
-			const auto t = std::chrono::system_clock::now();
-			for (uint64_t i = 1; i < all_positions.size(); ++i) {
-				assert(all_positions[i - 1] < all_positions[i]);
-			}
-			const auto s = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
-		}
-
-		{
-			const auto t = std::chrono::system_clock::now();
-			uint64_t count_checkmate_position = 0;
-			for (uint64_t i = 0; i < all_positions.size(); ++i) {
-				uint64_t bb1 = 0, bb2 = 0, pos = 0;
-				decode_ostle(all_positions[i], bb1, bb2, pos);
-				if (is_checkmate(bb1, bb2, pos))++count_checkmate_position;
-			}
-			const auto s = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
-			std::cout << "result: number of checkmate positions = " << count_checkmate_position << std::endl;
-		}
-
-		return;
-	}
-
-
-	std::vector<uint64_t>all_solutions;
-
-private:
-
-	enum {
-		UNLABELED = 0,
-		WIN = 1,
-		LOSE = 2,
-		SUICIDE = 100
-	};
-	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
-	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
-
-
-
-	void check_all_positions_if_checkmate() {
-
-		assert(all_positions.size() == all_solutions.size());
-
-		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
-
-		const auto t = std::chrono::system_clock::now();
-
-		uint64_t count_checkmate_position = 0;
+		//度数表を作る。この時点で、32を超える配列要素があれば、必ず構築失敗する。
+		std::vector<uint8_t>count(hash_length, 0);
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			uint64_t bb1 = 0, bb2 = 0, pos = 0;
-			decode_ostle(all_positions[i], bb1, bb2, pos);
-			if (is_checkmate(bb1, bb2, pos)) {
-				all_solutions[i] = SOLUTION_ALL_WIN;
-				++count_checkmate_position;
+			assert(all_positions[i] < (1ULL << 55));//ここのall_positionsはunique_ostleの出力であるはず
+			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+			assert(hashtable_index < hash_length);
+			if (++count[hashtable_index] > 32) {
+				return false;
 			}
 		}
 
-		const double percentage = 100.0 * double(count_checkmate_position) / double(all_positions.size());
+		//各添字番号について、（Robin Hood Hashingでinsertしたときに）その要素が実際に格納され始める位置を求める。
+		//32以上離れることがあれば、それは構築失敗を意味する。
+		int prev_start_pos = 0;
+		for (uint64_t i = 1; i < hash_length; ++i) {
+			const int current_start_pos = uint8_t(std::max(prev_start_pos + int(count[i - 1]) - 1, 0)); // main DP
+			if (current_start_pos >= 32) {
+				return false;
+			}
+			prev_start_pos = current_start_pos;
+		}
 
-		const auto s = std::chrono::system_clock::now();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << all_positions.size() <<
-			" (" << percentage << " %), elapsed time = " << elapsed << " milliseconds" << std::endl;
+		//最後の添字番号について、その要素が格納され終わる位置を求める。32以上離れることがあれば、それは構築失敗を意味する。
+		if (prev_start_pos + uint64_t(count[hash_length - 1]) >= 32)return false;
+
+		//
+		//処理がここに到達したということは構築可能である。よってここからは実際の構築処理を行う。
+		//
+
+		//配列all_positionsをハッシュ値の昇順で並べ替える。
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end(),
+				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end(),
+				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+		}
+
+		//配列all_positionsがハッシュテーブルの長さになるように、配列の先頭にゼロを付加する。
+		assert(hash_length + 31ULL >= all_positions.size());
+		const uint64_t diff_length = hash_length + 31ULL - all_positions.size();
+		all_positions.resize(hash_length + 31ULL);
+		for (uint64_t i = all_positions.size() - 1; i >= diff_length; --i) {
+			all_positions[i] = all_positions[i - diff_length];
+		}
+		for (uint64_t i = 0; i < diff_length; ++i) {
+			all_positions[i] = 0;
+		}
+
+		//signature_tableをハッシュテーブルの長さに初期化する。最上位ビットを立てておく（空白を意味する）。
+		signature_table.clear();
+		signature_table.resize(hash_length + 31ULL, 0x80U);
+
+		//iはall_positionsの中身が入っている部分全体をなめて、各要素をできるだけ前方にずらす。
+		//ただし、[table_index]より手前にならないように注意する。
+		uint64_t cursor = 0;
+		for (uint64_t i = diff_length; i < all_positions.size(); ++i, ++cursor) {
+			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+			for (; cursor < hashtable_index; ++cursor) {
+				all_positions[cursor] = 0;
+			}
+			assert(hashtable_index <= cursor && cursor <= hashtable_index + 31ULL);
+			all_positions[cursor] = all_positions[i];
+			signature_table[cursor] = hash_key % 0x80ULL;
+			assert(cursor <= i);
+		}
+		for (; cursor < all_positions.size(); ++cursor)all_positions[cursor] = 0;
+
+		assert(all_positions.size() == signature_table.size());
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (signature_table[i] == 0x80U)assert(all_positions[i] == 0);
+			else {
+				const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+				assert(signature_table[i] == hash_key % 0x80ULL);
+				const uint64_t c = find(all_positions[i]);
+				assert(c == i);
+			}
+		}
+
+		return true;
 	}
 
-	uint64_t code2index(const uint64_t code) const {
+	void prepare_for_hashtable() {
+
+		assert(USE_HASH_TABLE == true);
+
+		const uint64_t num_unique_positions = all_positions.size();
+
+		uint64_t hash_length = num_unique_positions + (num_unique_positions >> 3);
+		uint64_t hash_seed = 12345;
+
+		for (;; hash_length += hash_length >> 3) {
+			std::cout << "LOG: start: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << std::endl;
+			const bool b = constract_hashtable_if_hashable(hash_length, hash_seed);
+			if (b)break;
+		}
+
+		const double loading_factor = 100.0 * double(num_unique_positions) / double(hash_length);
+		std::cout << "LOG: finish: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << ", loading factor = " << loading_factor << " %" << std::endl;
+	}
+
+	uint64_t find(const uint64_t code) {
+		//all_positions[i]=codeなるiを探して返す。必ず見つかると仮定する。
+
+		assert(USE_HASH_TABLE == true);
+
+		const uint64_t hash_length = all_positions.size() - 31ULL;
+		const uint64_t hash_key = hash_func.aes128_enc(code);
+		const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+		const uint8_t signature = uint8_t(hash_key % 0x80ULL);
+
+		//ナイーブな処理手順では、all_positions[hashtable_index]から順番になめていって、所望の局面に当たったらOKとする。
+		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
+
+		__m256i query_signature = _mm256_set1_epi8(signature);
+		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[hashtable_index]);
+
+		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
+
+		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
+		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
+
+		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
+
+		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
+		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
+
+		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
+			const uint64_t pos = hashtable_index + i;
+			if (all_positions[pos] == code)return pos;
+		}
+
+		assert(false);
+		return 0;
+	}
+
+	uint64_t code2index(const uint64_t code) {
 		//all_positionsのどれかの値codeを引数にとり、all_positions[i]=codeなるiを探して返す。
 		//all_positionsが昇順にソートされていると仮定して二分探索で求める。
+
+		assert(USE_HASH_TABLE == false);
 
 		uint64_t lower = 0, upper = all_positions.size();
 
@@ -1461,9 +1312,44 @@ private:
 		return lower;
 	}
 
-	uint64_t check_one_position(const uint64_t index) const {
+	void check_all_positions_if_checkmate() {
+		//all_positionsの全ての盤面について、手番側が即座に勝利できる局面かどうか調べて、そうならばall_solutionsを更新する。
+
+		if (USE_HASH_TABLE) {
+			//ハッシュテーブルありの場合、ハッシュテーブルが既に構築済みであることを仮定する。（＝constract_hashtable_if_hashableを呼んでtrueが返ってきている）
+			assert(all_positions.size() == signature_table.size());
+		}
+
+		assert(all_positions.size() == all_solutions.size());
+
+		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
+
+		uint64_t count_checkmate_position = 0;
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (USE_HASH_TABLE) {
+				if (signature_table[i] & 0x80U)continue;
+			}
+			uint64_t bb1 = 0, bb2 = 0, pos = 0;
+			decode_ostle(all_positions[i], bb1, bb2, pos);
+			if (is_checkmate(bb1, bb2, pos)) {
+				all_solutions[i] = SOLUTION_ALL_WIN;
+				++count_checkmate_position;
+			}
+		}
+
+		const double percentage = 100.0 * double(count_checkmate_position) / double(all_positions.size());
+
+		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << all_positions.size()
+			<< " (" << percentage << " %)" << std::endl;
+	}
+
+	uint64_t check_one_position(const uint64_t index) {
 		//盤面all_positions[index]の全てのノード（禁じ手によって区別される）について勝敗判定を試みる。
 		//返り値は、今回の試行で新たに勝敗判定がなされたなら、更新した判定結果を返す。さもなくば更新されなかった判定結果を返す。
+
+		if (USE_HASH_TABLE) {
+			if (signature_table[index] & 0x80U)return 0ULL;
+		}
 
 		if (all_solutions[index] == SOLUTION_ALL_WIN ||
 			all_solutions[index] == SOLUTION_ALL_LOSE) {
@@ -1494,7 +1380,10 @@ private:
 				continue;
 			}
 			const uint64_t next_code = code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole));
-			const uint64_t next_index = code2index(next_code);
+			const uint64_t next_index =
+				USE_HASH_TABLE ?
+				find(next_code) :
+				code2index(next_code);
 
 			if (all_solutions[next_index] == SOLUTION_ALL_WIN) {
 				outcome[i] = LOSE;
@@ -1516,7 +1405,7 @@ private:
 			int forbidden_index = 0;
 			for (uint8_t j = 1; j <= next_moves[0]; ++j) {
 				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
-				do_move(bb1, bb2, pos, next_moves[i]);
+				do_move(bb1, bb2, pos, next_moves[j]);
 				if (_mm_popcnt_u64(bb1) == 3)continue;
 				if (bb1 == bb_player && bb2 == bb_opponent && pos == pos_hole) {
 					forbidden_index = j;
@@ -1613,101 +1502,858 @@ private:
 		return 0;
 	}
 
-
-public:
-
-	void retrograde_analysis() {
-
-		all_solutions.clear();
-		all_solutions.resize(all_positions.size());
-
-		check_all_positions_if_checkmate();
-
-
-		for(int iteration = 1;; ++iteration) {
-			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
-			const auto t = std::chrono::system_clock::now();
-
-			uint64_t updated_num = 0;
-			for (uint64_t i = 0; i < all_positions.size(); ++i) {
-				const uint64_t next_solution = check_one_position(i);
-				updated_num += (next_solution != all_solutions[i]) ? 1 : 0;
-				all_solutions[i] = next_solution;
-			}
-
-			const auto s = std::chrono::system_clock::now();
-			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
-			if (updated_num == 0)break;
+	uint64_t retrograde_analysis_single_iteration_serial() {
+		uint64_t updated_num = 0;
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			const uint64_t next_solution = check_one_position(i);
+			updated_num += (next_solution != all_solutions[i]) ? 1 : 0;
+			all_solutions[i] = next_solution;
 		}
+		return updated_num;
 	}
 
-	void retrograde_analysis_parallel() {
-
-		all_solutions.clear();
-		all_solutions.resize(all_positions.size());
+	uint64_t retrograde_analysis_single_iteration_parallel() {
 
 		constexpr uint64_t TASK_SIZE = 1'000'000ULL;
 
-		check_all_positions_if_checkmate();
+		std::vector<uint64_t>next_solutions;
+		next_solutions.reserve(TASK_SIZE);
 
+		uint64_t updated_num = 0;
 
-		for (int iteration = 1;; ++iteration) {
-			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
-			const auto t = std::chrono::system_clock::now();
+		for (uint64_t t = 0; t < all_positions.size(); t += TASK_SIZE) {
 
-			uint64_t updated_num = 0;
+			next_solutions.resize(std::min(TASK_SIZE, all_positions.size() - t));
 
-			for (uint64_t t = 0; t < all_positions.size(); t += TASK_SIZE) {
-				std::vector<uint64_t>next_solutions(std::min(TASK_SIZE, all_positions.size() - t));
-
-				const int64_t start = t, end = t + next_solutions.size();
+			const int64_t start = t, end = t + next_solutions.size();
 
 #pragma omp parallel for schedule(guided)
-				for (int64_t i = start; i < end; ++i) {
-					const uint64_t next_solution = check_one_position(i);
-					next_solutions[i - start] = next_solution;
-				}
-
-				for (int64_t i = start; i < end; ++i) {
-					updated_num += (next_solutions[i - start] != all_solutions[i]) ? 1 : 0;
-					all_solutions[i] = next_solutions[i - start];
-				}
-
+			for (int64_t i = start; i < end; ++i) {
+				const uint64_t next_solution = check_one_position(i);
+				next_solutions[i - start] = next_solution;
 			}
+
+			for (int64_t i = start; i < end; ++i) {
+				updated_num += (next_solutions[i - start] != all_solutions[i]) ? 1 : 0;
+				all_solutions[i] = next_solutions[i - start];
+			}
+
+		}
+		return updated_num;
+	}
+
+
+public:
+
+	OstleEnumerator(int start_piece) {
+		positions.reserve(500'000'000ULL);
+
+		if (start_piece == 10) {
+			all_positions.reserve(2'800'000'000ULL);
+		}
+		else if (start_piece == 9) {
+			all_positions.reserve(1'200'000'000ULL);
+		}
+		else if (start_piece == 8) {
+			all_positions.reserve(200'000'000ULL);
+		}
+		else {
+			assert(false);
+		}
+		num_start_piece = start_piece;
+	}
+
+	OstleEnumerator() :OstleEnumerator(8) {}
+
+	void do_enumerate() {
+
+		const uint64_t holes[6] = { 0,1,2,6,7,12 };
+		uint64_t num_unique_positions = 0;
+
+		std::cout << "LOG: start: position_maker_root" << std::endl;
+
+		switch (num_start_piece) {
+		case 10:
+			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
+		case 9:
+			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
+			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
+		case 8:
+			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
+			break;
+		default:
+			assert(false);
+		}
+
+		std::cout << "LOG: finish: position_maker_root" << std::endl;
+
+		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
+
+		assert(num_unique_positions == all_positions.size());
+
+		std::cout << "LOG: start: verify uniqueness and count checkamte positions" << std::endl;
+
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
+		}
+
+		for (uint64_t i = 1; i < all_positions.size(); ++i) {
+			assert(all_positions[i - 1] < all_positions[i]);
+		}
+
+		std::cout << "LOG: finish: verify uniqueness and count checkamte positions" << std::endl;
+
+		return;
+	}
+
+	void retrograde_analysis() {
+
+		std::cout << "LOG: finish: retrograde_analysis." << std::endl;
+
+
+		if (USE_HASH_TABLE) {
+			prepare_for_hashtable();
+		}
+
+		all_solutions.clear();
+		all_solutions.resize(all_positions.size());
+
+		check_all_positions_if_checkmate();
+
+		for(int iteration = 1;; ++iteration) {
+			std::cout << "LOG: start: iteration " << iteration << std::endl;
+			const auto t = std::chrono::system_clock::now();
+
+			const uint64_t updated_num =
+				PARALLEL ?
+				retrograde_analysis_single_iteration_parallel() :
+				retrograde_analysis_single_iteration_serial();
 
 			const auto s = std::chrono::system_clock::now();
 			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+			std::cout << "LOG: finish: iteration " << iteration << " : updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
 			if (updated_num == 0)break;
 		}
+
+		std::cout << "LOG: finish: retrograde_analysis." << std::endl;
 	}
 
+	uint64_t calc_final_result_hashvalue() {
+		//全盤面とその解析結果の組に関するハッシュ値を生成して返す。
+		//USE_HASH_TABLE, PARALLELの有無によって計算結果が変わらないはずだが、これを確かめるのに使う。
+		//USE_HASH_TABLEの有無によってall_positionsの中身の順番が異なるので、可換な演算でreduceする必要がある。
+
+		Encoder_AES encoder(123456);
+
+		__m128i answer = _mm_setzero_si128();
+
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (USE_HASH_TABLE) {
+				if (signature_table[i] & 0x80U)continue;
+			}
+			const __m128i x = encoder.aes128_enc(all_positions[i], all_solutions[i]);
+			answer = _mm_xor_si128(x, answer);//xorは可換
+		}
+
+		uint64_t a[2];
+		_mm_storeu_si128((__m128i*)a, answer);
+		return a[0] ^ a[1];
+	}
 };
 
+//template<bool USE_HASH_TABLE>class OstleEnumerator_hashtable {
+//
+//private:
+//
+//	std::vector<uint64_t>positions;
+//
+//	std::vector<uint64_t>all_positions;
+//
+//	std::vector<uint8_t>signature_table;
+//
+//
+//	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
+//
+//		const int num_remaining_object = num_piece_player + num_piece_opponent + (cursor <= pos_hole ? 1 : 0);
+//
+//		if (cursor == 25) {
+//			assert(num_remaining_object == 0);
+//			const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
+//			positions.push_back(code);
+//			return;
+//		}
+//		else {
+//			assert(num_remaining_object + cursor < 25 || pos_hole == cursor || num_piece_player + num_piece_opponent > 0);
+//		}
+//
+//		if (pos_hole == cursor) {
+//			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+//			return;
+//		}
+//
+//		if (num_remaining_object + cursor < 25) {
+//			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+//		}
+//
+//		const uint64_t bb_cursor = pdep_intrinsics(1ULL << cursor, BB_ALL_8X8_5X5);
+//
+//		if (num_piece_player > 0) {
+//			position_maker(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
+//		}
+//		if (num_piece_opponent > 0) {
+//			position_maker(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
+//		}
+//	}
+//
+//	uint64_t position_maker_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent) {
+//
+//		std::cout << "LOG: start: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ")" << std::endl;
+//
+//		auto t0 = std::chrono::system_clock::now();
+//
+//		const auto print_time = [&](std::string task_name) {
+//			const auto t1 = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+//			std::cout << "LOG: elapsed time:" << task_name << ": " << elapsed << " milliseconds" << std::endl;
+//			t0 = std::chrono::system_clock::now();
+//		};
+//
+//		positions.clear();
+//		position_maker(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
+//
+//		{
+//			const auto t1 = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+//			std::cout << "LOG: total positions.size() == " << positions.size() <<
+//				"(symmetrical boards were separately counted), elapsed time = " << elapsed << " milliseconds" << std::endl;
+//			t0 = std::chrono::system_clock::now();
+//		}
+//
+//		const int64_t siz = positions.size();
+//#pragma omp parallel for
+//		for (int64_t i = 0; i < siz; ++i) {
+//			positions[i] = code_unique(positions[i]);
+//		}
+//
+//		std::sort(std::execution::par, positions.begin(), positions.end());
+//		const auto result = std::unique(positions.begin(), positions.end());
+//		positions.erase(result, positions.end());
+//
+//
+//		print_time("obtaining unique positions");
+//
+//		std::cout << "result: num_unique_positions(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << ") = " << positions.size() << std::endl;
+//
+//		return positions.size();
+//	}
+//
+//public:
+//
+//	OstleEnumerator_hashtable() {
+//		positions.reserve(500'000'000ULL);
+//
+//		//all_positions.reserve(2'800'000'000ULL);
+//		all_positions.reserve(200'000'000ULL);
+//	}
+//
+//	uint64_t do_enumerate() {
+//
+//		const uint64_t holes[6] = { 0,1,2,6,7,12 };
+//		uint64_t num_unique_positions = 0;
+//
+//		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
+//		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
+//		//for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
+//		for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
+//
+//		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
+//
+//		assert(num_unique_positions == all_positions.size());
+//
+//		{
+//			const auto t = std::chrono::system_clock::now();
+//			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+//			const auto s = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//			std::cout << "LOG: elapsed time:sort all_positions: " << elapsed << " milliseconds" << std::endl;
+//		}
+//
+//		{
+//			const auto t = std::chrono::system_clock::now();
+//			for (uint64_t i = 1; i < all_positions.size(); ++i) {
+//				assert(all_positions[i - 1] < all_positions[i]);
+//			}
+//			const auto s = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
+//		}
+//
+//		{
+//			const auto t = std::chrono::system_clock::now();
+//			uint64_t count_checkmate_position = 0;
+//			for (uint64_t i = 0; i < all_positions.size(); ++i) {
+//				uint64_t bb1 = 0, bb2 = 0, pos = 0;
+//				decode_ostle(all_positions[i], bb1, bb2, pos);
+//				if (is_checkmate(bb1, bb2, pos))++count_checkmate_position;
+//			}
+//			const auto s = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//			std::cout << "LOG: elapsed time:check all_positions: " << elapsed << " milliseconds" << std::endl;
+//			std::cout << "result: number of checkmate positions = " << count_checkmate_position << std::endl;
+//		}
+//
+//		return num_unique_positions;
+//	}
+//
+//
+//
+//	bool constract_hashtable_if_hashable(const uint64_t hash_length, const uint64_t hash_seed) {
+//		//ハッシュテーブルの長さとハッシュ関数のseed値を引数に取り、all_positionsがそのハッシュテーブルに収まるかどうか調べる。
+//		//収まらないならばfalseを返す。収まるならば、ハッシュテーブルを実際に構築してからtrueを返す。
+//
+//		//hash_lengthは2^32未満でなければならないが、2べき数でなくてもよい。
+//		assert(hash_length < (1ULL << 32));
+//
+//		if (hash_length < all_positions.size())return false;
+//
+//		//key observation:
+//		//エントリeを[0,2^32)のハッシュ値h(e)に一様ランダムに写像できたならば、
+//		//((hash_length * h(e)) >> 32) はeを[0,hash_length)に一様ランダムに写像するものである。（整数除算命令を用いずに！）
+//		// cf: https://github.com/official-stockfish/Stockfish/commit/2198cd0524574f0d9df8c0ec9aaf14ad8c94402b
+//
+//		hash_func = Encoder_AES(hash_seed);
+//
+//		//度数表を作る。この時点で、32を超える配列要素があれば、必ず構築失敗する。
+//		std::vector<uint8_t>count(hash_length, 0);
+//		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+//			assert(all_positions[i] < (1ULL << 55));//ここのall_positionsはunique_ostleの出力であるはず
+//			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+//			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+//			assert(hashtable_index < hash_length);
+//			if (++count[hashtable_index] > 32) {
+//				return false;
+//			}
+//		}
+//
+//		//各添字番号について、（Robin Hood Hashingでinsertしたときに）その要素が実際に格納され始める位置を求める。
+//		//32以上離れることがあれば、それは構築失敗を意味する。
+//		int prev_start_pos = 0;
+//		for (uint64_t i = 1; i < hash_length; ++i) {
+//			const int current_start_pos = uint8_t(std::max(prev_start_pos + int(count[i - 1]) - 1, 0)); // main DP
+//			if (current_start_pos >= 32) {
+//				return false;
+//			}
+//			prev_start_pos = current_start_pos;
+//		}
+//
+//		//最後の添字番号について、その要素が格納され終わる位置を求める。32以上離れることがあれば、それは構築失敗を意味する。
+//		if (prev_start_pos + uint64_t(count[hash_length - 1]) >= 32)return false;
+//
+//		//
+//		//処理がここに到達したということは構築可能である。よってここからは実際の構築処理を行う。
+//		//
+//
+//		//配列all_positionsをハッシュ値の昇順で並べ替える。
+//		std::sort(std::execution::par, all_positions.begin(), all_positions.end(),
+//			[&hash_func](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+//
+//		//配列all_positionsがハッシュテーブルの長さになるように、配列の先頭にゼロを付加する。
+//		assert(hash_length + 31ULL >= all_positions.size());
+//		const uint64_t diff_length = hash_length + 31ULL - all_positions.size();
+//		all_positions.resize(hash_length + 31ULL);
+//		for (uint64_t i = all_positions.size() - 1; i >= diff_length; --i) {
+//			all_positions[i] = all_positions[i - diff_length];
+//		}
+//		for (uint64_t i = 0; i < diff_length; ++i) {
+//			all_positions[i] = 0;
+//		}
+//
+//		//signature_tableをハッシュテーブルの長さに初期化する。最上位ビットを立てておく（空白を意味する）。
+//		signature_table.clear();
+//		signature_table.resize(hash_length + 31ULL, 0x80U);
+//
+//		//iはall_positionsの中身が入っている部分全体をなめて、各要素をできるだけ前方にずらす。
+//		//ただし、[table_index]より手前にならないように注意する。
+//		uint64_t cursor = 0;
+//		for (uint64_t i = diff_length; i < all_positions.size(); ++i, ++cursor) {
+//			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+//			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+//			for (; cursor < hashtable_index; ++cursor) {
+//				all_positions[cursor] = 0;
+//			}
+//			assert(hashtable_index <= cursor && cursor <= hashtable_index + 31ULL);
+//			all_positions[cursor] = all_positions[i];
+//			signature_table[cursor] = hash_key % 0x80ULL;
+//			assert(cursor <= i);
+//		}
+//		for (; cursor < all_positions.size(); ++cursor)all_positions[cursor] = 0;
+//
+//		assert(all_positions.size() == signature_table.size());
+//		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+//			if (signature_table[i] == 0x80U)assert(all_positions[i] == 0);
+//			else {
+//				const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
+//				assert(signature_table[i] == hash_key % 0x80ULL);
+//				const uint64_t c = find(all_positions[i], hash_func);
+//				assert(c == i);
+//			}
+//		}
+//
+//		return true;
+//	}
+//
+//	uint64_t find(const uint64_t code, const Encoder_AES &hash_func) {
+//
+//		//all_positions[i]=codeなるiを探して返す。必ず見つかると仮定する。
+//
+//		const uint64_t hash_length = all_positions.size() - 31ULL;
+//		const uint64_t hash_key = hash_func.aes128_enc(code);
+//		const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
+//		const uint8_t signature = uint8_t(hash_key % 0x80ULL);
+//
+//		//ナイーブな処理手順では、all_positions[hashtable_index]から順番になめていって、所望の局面に当たったらOKとする。
+//		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
+//
+//		__m256i query_signature = _mm256_set1_epi8(signature);
+//		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[hashtable_index]);
+//
+//		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
+//
+//		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
+//		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
+//
+//		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
+//
+//		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
+//		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
+//
+//		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
+//			const uint64_t pos = hashtable_index + i;
+//			if (all_positions[pos] == code)return pos;
+//		}
+//
+//		assert(false);
+//		return 0;
+//	}
+//
+//	std::vector<uint64_t>all_solutions;
+//
+//private:
+//
+//	enum {
+//		UNLABELED = 0,
+//		WIN = 1,
+//		LOSE = 2,
+//		SUICIDE = 100
+//	};
+//	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
+//	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
+//
+//
+//
+//	void check_all_positions_if_checkmate() {
+//
+//		assert(all_positions.size() == all_solutions.size());
+//
+//		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
+//
+//		const auto t = std::chrono::system_clock::now();
+//
+//		uint64_t count_checkmate_position = 0, count_all_position = 0;
+//		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+//			if (signature_table[i] == 0x80U)continue;
+//			++count_all_position;
+//			uint64_t bb1 = 0, bb2 = 0, pos = 0;
+//			decode_ostle(all_positions[i], bb1, bb2, pos);
+//			if (is_checkmate(bb1, bb2, pos)) {
+//				all_solutions[i] = SOLUTION_ALL_WIN;
+//				++count_checkmate_position;
+//			}
+//		}
+//
+//		const double percentage = 100.0 * double(count_checkmate_position) / double(count_all_position);
+//
+//		const auto s = std::chrono::system_clock::now();
+//		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << count_all_position <<
+//			" (" << percentage << " %), elapsed time = " << elapsed << " milliseconds" << std::endl;
+//	}
+//
+//
+//
+//	//uint64_t code2index(const uint64_t code) {
+//	//	//all_positionsのどれかの値codeを引数にとり、all_positions[i]=codeなるiを探して返す。
+//	//	//all_positionsが昇順にソートされていると仮定して二分探索で求める。
+//	//	uint64_t lower = 0, upper = all_positions.size();
+//	//	while (lower + 1ULL < upper) {
+//	//		const uint64_t mid = (lower + upper) / 2;
+//	//		if (all_positions[mid] == code)return mid;
+//	//		else if (all_positions[mid] <= code)lower = mid;
+//	//		else upper = mid;
+//	//	}
+//	//	assert(all_positions[lower] == code);
+//	//	return lower;
+//	//}
+//
+//	uint64_t check_one_position(const uint64_t index, const Encoder_AES &hash_func) {
+//		//盤面all_positions[index]の全てのノード（禁じ手によって区別される）について勝敗判定を試みる。
+//		//返り値は、今回の試行で新たに勝敗判定がなされたなら、更新した判定結果を返す。さもなくば更新されなかった判定結果を返す。
+//		
+//		if (signature_table[index] & 0x80U)return 0ULL;
+//
+//		if (all_solutions[index] == SOLUTION_ALL_WIN ||
+//			all_solutions[index] == SOLUTION_ALL_LOSE) {
+//			return all_solutions[index];
+//		}
+//
+//		uint64_t next_all_solutions = all_solutions[index];
+//
+//		//処理がここに到達した時点で、盤面all_positions[index]はcheckmate盤面ではないと仮定する。
+//		//言い換えると、予めcheck_all_positions_if_checkmate関数が呼ばれていることを仮定する。
+//
+//		uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+//		decode_ostle(all_positions[index], bb_player, bb_opponent, pos_hole);
+//
+//		Moves moves, next_moves;
+//		generate_moves(bb_player, bb_opponent, pos_hole, moves);
+//
+//		assert(moves[0] <= 24);
+//
+//		//まず、各指し手を指した先の局面が勝敗判定されているか調べる。
+//		uint8_t outcome[32] = {}, win_num = 0, lose_num = 0, unknown_num = 0, suicide_num = 0;
+//		for (uint8_t i = 1; i <= moves[0]; ++i) {
+//			uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
+//			do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[i]);
+//			if (_mm_popcnt_u64(next_bb_player) == 3) {
+//				outcome[i] = SUICIDE;
+//				++suicide_num;
+//				continue;
+//			}
+//			const uint64_t next_code = code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole));
+//			const uint64_t next_index = find(next_code, hash_func);
+//
+//			if (all_solutions[next_index] == SOLUTION_ALL_WIN) {
+//				outcome[i] = LOSE;
+//				++lose_num;
+//				continue;
+//			}
+//			if (all_solutions[next_index] == SOLUTION_ALL_LOSE) {
+//				outcome[i] = WIN;
+//				++win_num;
+//				continue;
+//			}
+//			if (all_solutions[next_index] == 0) {
+//				outcome[i] = UNLABELED;
+//				++unknown_num;
+//				continue;
+//			}
+//
+//			generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
+//			int forbidden_index = 0;
+//			for (uint8_t j = 1; j <= next_moves[0]; ++j) {
+//				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
+//				do_move(bb1, bb2, pos, next_moves[j]);
+//				if (_mm_popcnt_u64(bb1) == 3)continue;
+//				if (bb1 == bb_player && bb2 == bb_opponent && pos == pos_hole) {
+//					forbidden_index = j;
+//					break;
+//				}
+//			}
+//			const uint64_t next_solution = (all_solutions[next_index] >> (forbidden_index * 2)) % 4;
+//			if (next_solution == LOSE) {
+//				outcome[i] = WIN;
+//				if (++win_num >= 2)break;
+//			}
+//			else if (next_solution == WIN) {
+//				outcome[i] = LOSE;
+//				++lose_num;
+//			}
+//			else {
+//				assert(next_solution == UNLABELED);
+//				outcome[i] = UNLABELED;
+//				++unknown_num;
+//			}
+//
+//		}
+//
+//		//2つ以上の指し手が勝利をもたらすなら、禁じ手がどれであろうと勝利が確定する。
+//		if (win_num >= 2) {
+//			return SOLUTION_ALL_WIN;
+//		}
+//
+//		assert(int(win_num) + int(lose_num) + int(unknown_num) + int(suicide_num) == int(moves[0]));
+//
+//		//1つの指し手Xだけが勝利確定手の場合
+//		if (win_num == 1) {
+//			for (uint8_t i = 0; i <= moves[0]; ++i) {
+//				const uint8_t present_solution = uint8_t((all_solutions[index] >> (i * 2)) % 4);
+//				if (i == 0 || outcome[i] != WIN) {
+//					//禁じ手が存在しないか、禁じ手がX以外である場合は、（Xを指せばいいので）勝利が確定する。
+//					assert(present_solution == UNLABELED || present_solution == WIN);
+//					if (present_solution == UNLABELED) {
+//						next_all_solutions |= uint64_t(WIN) << (i * 2);
+//					}
+//				}
+//				else {
+//					//Xが禁じ手である場合、X以外の指し手が全て敗北確定ならば「Xが禁じ手である場合は敗北」と確定する。さもなくば未確定である。
+//					if (unknown_num == 0) {
+//						assert(present_solution == UNLABELED || present_solution == LOSE);
+//						if (present_solution == UNLABELED) {
+//							next_all_solutions |= uint64_t(LOSE) << (i * 2);
+//						}
+//					}
+//					else {
+//						assert(present_solution == UNLABELED);
+//					}
+//				}
+//			}
+//			return next_all_solutions;
+//		}
+//
+//		//全ての指し手が敗北確定なら、禁じ手がどれであろうと敗北が確定する。
+//		if (win_num == 0 && unknown_num == 0) {
+//			return SOLUTION_ALL_LOSE;
+//		}
+//
+//		//ただ1つの指し手Xが未確定で、それ以外全ての指し手が敗北確定の場合
+//		if (win_num == 0 && unknown_num == 1) {
+//			for (uint8_t i = 0; i <= moves[0]; ++i) {
+//				const uint64_t present_solution = (all_solutions[index] >> (i * 2)) % 4;
+//				if (i == 0) {
+//					//禁じ手が存在しない場合は未確定。
+//					assert(present_solution == UNLABELED);
+//					continue;
+//				}
+//				else if (outcome[i] == UNLABELED) {
+//					//Xが禁じ手である場合は敗北が確定する。
+//					assert(present_solution == UNLABELED || present_solution == LOSE);
+//					if (present_solution == UNLABELED) {
+//						next_all_solutions |= uint64_t(LOSE) << (i * 2);
+//					}
+//				}
+//				else {
+//					//X以外が禁じ手である場合は、（Xを指せるので）未確定。
+//
+//					assert(outcome[i] == LOSE || outcome[i] == SUICIDE);
+//					assert(present_solution == UNLABELED);
+//				}
+//			}
+//			return next_all_solutions;
+//		}
+//
+//		//ここに到達したということは、勝利確定手が見つかっておらず、かつ未確定の指し手が2つ以上存在する。
+//		assert(win_num == 0 && unknown_num >= 2);
+//
+//		//その場合は禁じ手がどれであろうと未確定である。
+//		assert(all_solutions[index] == 0);
+//		return 0;
+//	}
+//
+//
+//public:
+//
+//	void retrograde_analysis_hashtable(const uint64_t hash_length, const uint64_t hash_seed) {
+//
+//		all_solutions.clear();
+//		all_solutions.resize(all_positions.size());
+//
+//		check_all_positions_if_checkmate();
+//
+//		Encoder_AES hash_func(hash_seed);
+//
+//		for (int iteration = 1;; ++iteration) {
+//			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
+//			const auto t = std::chrono::system_clock::now();
+//
+//			uint64_t updated_num = 0;
+//			for (uint64_t i = 0; i < all_positions.size(); ++i) {
+//				const uint64_t next_solution = check_one_position(i, hash_func);
+//				updated_num += (next_solution != all_solutions[i]) ? 1 : 0;
+//				all_solutions[i] = next_solution;
+//			}
+//
+//			const auto s = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+//			if (updated_num == 0)break;
+//		}
+//	}
+//
+//	void retrograde_analysis_hashtable_parallel(const uint64_t hash_length, const uint64_t hash_seed) {
+//
+//		all_solutions.clear();
+//		all_solutions.resize(all_positions.size());
+//
+//		constexpr uint64_t TASK_SIZE = 1'000'000ULL;
+//
+//		check_all_positions_if_checkmate();
+//
+//		Encoder_AES hash_func(hash_seed);
+//
+//		for (int iteration = 1;; ++iteration) {
+//			std::cout << "LOG: start: retrograde_analysis iteration " << iteration << std::endl;
+//			const auto t = std::chrono::system_clock::now();
+//
+//			uint64_t updated_num = 0;
+//
+//			for (uint64_t t = 0; t < all_positions.size(); t += TASK_SIZE) {
+//				std::vector<uint64_t>next_solutions(std::min(TASK_SIZE, all_positions.size() - t));
+//
+//				const int64_t start = t, end = t + next_solutions.size();
+//
+//#pragma omp parallel for schedule(guided)
+//				for (int64_t i = start; i < end; ++i) {
+//					const uint64_t next_solution = check_one_position(i, hash_func);
+//					next_solutions[i - start] = next_solution;
+//				}
+//
+//				for (int64_t i = start; i < end; ++i) {
+//					updated_num += (next_solutions[i - start] != all_solutions[i]) ? 1 : 0;
+//					all_solutions[i] = next_solutions[i - start];
+//				}
+//
+//			}
+//
+//			const auto s = std::chrono::system_clock::now();
+//			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+//			std::cout << "LOG: updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+//			if (updated_num == 0)break;
+//		}
+//	}
+//
+//};
+
+
+
+uint64_t c2i(const uint64_t c, const std::vector<uint64_t> &table) {
+	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
+	//tableが昇順にソートされていると仮定して二分探索で求める。
+
+	uint64_t lower = 0, upper = table.size();
+
+	while (lower + 1ULL < upper) {
+		const uint64_t mid = (lower + upper) / 2;
+		if (table[mid] == c)return mid;
+		else if (table[mid] <= c)lower = mid;
+		else upper = mid;
+	}
+
+	assert(table[lower] == c);
+	return lower;
+}
+
+uint64_t shiftxor_forward(uint64_t x, int s) {
+	return x ^ (x >> s);
+}
+
+uint64_t split_mix_64(uint64_t x) {
+
+	// SplitMix64
+	// http://prng.di.unimi.it/splitmix64.c
+
+	x += 0x9e3779b97f4a7c15ULL;
+	x = shiftxor_forward(x, 30);
+	x *= 0xbf58476d1ce4e5b9ULL;
+	x = shiftxor_forward(x, 27);
+	x *= 0x94d049bb133111ebULL;
+	x = shiftxor_forward(x, 31);
+	return x;
+}
+
+void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t seed) {
+
+	std::vector<uint64_t>test_table(size);
+
+	test_table[0] = seed;
+	for (uint64_t i = 1; i < size; ++i) {
+		test_table[i] = split_mix_64(test_table[i - 1]);
+	}
+
+	std::sort(std::execution::par, test_table.begin(), test_table.end());
+
+	for (uint64_t i = 1; i < size; ++i) {
+		assert(test_table[i - 1] < test_table[i]);
+	}
+
+	std::cout << "LOG: start: speedtest_c2i " << std::endl;
+	const auto t = std::chrono::system_clock::now();
+
+	const uint64_t N = std::min(num_trial, size);
+	uint64_t result = 0;
+	for (uint64_t i = 0, c = seed; i < N; ++i, c = split_mix_64(c)) {
+		const uint64_t x = c2i(c, test_table);
+		result += x;
+	}
+
+	const auto s = std::chrono::system_clock::now();
+	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+	std::cout << "LOG: result = " << result << ", size = " << size << ", num_trial = " << N << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
+}
+
+
+
+
+
+void test_all_strategies() {
+	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
+	OstleEnumerator<false, false> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint1 = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint1 << std::endl;
+
+	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
+	OstleEnumerator<false, true> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint2 = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_binarysearch_parallel. fingerprint = " << fingerprint2 << std::endl;
+	assert(fingerprint1 == fingerprint2);
+
+	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
+	OstleEnumerator<true, false> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint3 = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint3 << std::endl;
+	assert(fingerprint1 == fingerprint3);
+
+	std::cout << "LOG: start: enumerate_hashtable_parallel" << std::endl;
+	OstleEnumerator<true, true> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint4 = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_hashtable_parallel. fingerprint = " << fingerprint4 << std::endl;
+	assert(fingerprint1 == fingerprint4);
+}
+
+
+void unittests() {
+	init_move_tables();
+
+	test_move(12345, 100000);
+	test_checkmate_detector_func(12345, 100000);
+	test_bitboard_symmetry(12345, 100000);
+
+	std::exit(0);
+}
 
 int main(int argc, char *argv[]) {
 
 	init_move_tables();
 
-	//test_move(12345, 10000);
-	//test_checkmate_detector_func(12345, 10000);
-	//test_bitboard_symmetry(12345, 10000);
+	//speedtest_c2i(1'000'000'000ULL, 100'000'000ULL, 12345);
+	//return 0;
 
-	//OstleEnumerator_search_based<false> e;
-	//e.do_enumerate();
+	//unittests();
 
-	OstleEnumerator_brute_force e;
-	e.do_enumerate();
+	test_all_strategies();
 
-	e.retrograde_analysis();
-	const auto result1 = e.all_solutions;
 
-	e.retrograde_analysis_parallel();
-	const auto result2 = e.all_solutions;
 
-	assert(result1.size() == result2.size());
-	for (uint64_t i = 0; i < result1.size(); ++i)assert(result1[i] == result2[i]);
 
 	return 0;
 }
