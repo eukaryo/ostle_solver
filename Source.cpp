@@ -224,10 +224,10 @@ std::string code2string(const uint64_t code) {
 	std::string answer = "";
 
 	for (int i = 0; i < 25; ++i) {
-		if (code & (1ULL << (i + 5))) {
+		if (code & (1ULL << (i + 30))) {
 			answer += "1";
 		}
-		else if (code & (1ULL << (i + 30))) {
+		else if (code & (1ULL << (i + 5))) {
 			answer += "2";
 		}
 		else if (pos_hole == i) {
