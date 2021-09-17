@@ -1343,11 +1343,12 @@ private:
 
 		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
 
-		uint64_t count_checkmate_position = 0;
+		uint64_t count_checkmate_position = 0, count_position = 0;
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
 			if (USE_HASH_TABLE) {
 				if (signature_table[i] & 0x80U)continue;
 			}
+			++count_position;
 			uint64_t bb1 = 0, bb2 = 0, pos = 0;
 			decode_ostle(all_positions[i], bb1, bb2, pos);
 			if (is_checkmate(bb1, bb2, pos)) {
@@ -1356,7 +1357,7 @@ private:
 			}
 		}
 
-		const double percentage = 100.0 * double(count_checkmate_position) / double(all_positions.size());
+		const double percentage = 100.0 * double(count_checkmate_position) / double(count_position);
 
 		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << all_positions.size()
 			<< " (" << percentage << " %)" << std::endl;
