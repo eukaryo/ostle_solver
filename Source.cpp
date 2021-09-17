@@ -203,8 +203,8 @@ uint64_t encode_ostle(const uint64_t bb_player, const uint64_t bb_opponent, cons
 	assert((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent);
 
 	uint64_t answer = pos_hole;
-	answer |= pext_intrinsics(bb_player, BB_ALL_8X8_5X5) << 5;
-	answer |= pext_intrinsics(bb_opponent, BB_ALL_8X8_5X5) << 30;
+	answer |= pext_intrinsics(bb_player, BB_ALL_8X8_5X5) << 30;
+	answer |= pext_intrinsics(bb_opponent, BB_ALL_8X8_5X5) << 5;
 
 	return answer;
 }
@@ -213,8 +213,8 @@ void decode_ostle(const uint64_t code, uint64_t &bb_player, uint64_t &bb_opponen
 	assert((code % 32) < 25);
 
 	pos_hole = code % 32;
-	bb_player = pdep_intrinsics(code >> 5, BB_ALL_8X8_5X5);
-	bb_opponent = pdep_intrinsics(code >> 30, BB_ALL_8X8_5X5);
+	bb_player = pdep_intrinsics(code >> 30, BB_ALL_8X8_5X5);
+	bb_opponent = pdep_intrinsics(code >> 5, BB_ALL_8X8_5X5);
 }
 
 std::string code2string(const uint64_t code) {
@@ -432,6 +432,25 @@ uint8_t undo_move_table[2][5][6][32][32][6][2] = {};//[a][b][c][d][e][f][g] a:�
 //2*5*6*32*32*(3+6*2)=921,600.  1メガバイト程度のテーブルになる。
 
 void init_move_tables() {
+
+	//冪等性を保つためにここで全部ゼロ埋めする。
+	for (int a = 0; a < 2; ++a) {
+		for (int b = 0; b < 5; ++b) {
+			for (int c = 0; c < 6; ++c) {
+				for (int d = 0; d < 32; ++d) {
+					for (int e = 0; e < 32; ++e) {
+						for (int f = 0; f < 3; ++f) {
+							do_move_table[a][b][c][d][e][f] = 0;
+						}
+						for (int f = 0; f < 6; ++f) {
+							undo_move_table[a][b][c][d][e][f][0] = 0;
+							undo_move_table[a][b][c][d][e][f][1] = 0;
+						}
+					}
+				}
+			}
+		}
+	}
 
 	for (uint64_t d = 0; d < 32; ++d)for (uint64_t e = 0; e < 32; ++e) {
 		if (d & e)continue;
@@ -1734,16 +1753,6 @@ void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t
 
 
 
-uint64_t enumerate_binarysearch_serial() {
-	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
-	OstleEnumerator<false, false> e;
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
 uint64_t enumerate_binarysearch_parallel() {
 	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
 	OstleEnumerator<false, true> e;
@@ -1754,13 +1763,13 @@ uint64_t enumerate_binarysearch_parallel() {
 	return fingerprint;
 }
 
-uint64_t enumerate_hashtable_serial() {
-	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
-	OstleEnumerator<true, false> e;
+uint64_t enumerate_binarysearch_serial() {
+	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
+	OstleEnumerator<false, false> e;
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint << std::endl;
+	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
 
@@ -1774,11 +1783,21 @@ uint64_t enumerate_hashtable_parallel() {
 	return fingerprint;
 }
 
+uint64_t enumerate_hashtable_serial() {
+	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
+	OstleEnumerator<true, false> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint << std::endl;
+	return fingerprint;
+}
+
 void test_all_strategies() {
-	const uint64_t fingerprint1 = enumerate_binarysearch_serial();
-	const uint64_t fingerprint2 = enumerate_binarysearch_parallel();
-	const uint64_t fingerprint3 = enumerate_hashtable_serial();
-	const uint64_t fingerprint4 = enumerate_hashtable_parallel();
+	const uint64_t fingerprint1 = enumerate_binarysearch_parallel();
+	const uint64_t fingerprint2 = enumerate_binarysearch_serial();
+	const uint64_t fingerprint3 = enumerate_hashtable_parallel();
+	const uint64_t fingerprint4 = enumerate_hashtable_serial();
 	assert(fingerprint1 == fingerprint2);
 	assert(fingerprint1 == fingerprint3);
 	assert(fingerprint1 == fingerprint4);
@@ -1786,7 +1805,6 @@ void test_all_strategies() {
 
 
 void unittests() {
-	init_move_tables();
 
 	test_move(12345, 100000);
 	test_checkmate_detector_func(12345, 100000);
