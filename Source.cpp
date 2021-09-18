@@ -1519,18 +1519,16 @@ private:
 		assert(USE_HASH_TABLE == false);
 		assert(USE_LEVELWISE == true);
 
-		const uint64_t leaf = (all_positions.size() + 1ULL) / 2ULL;
 		uint64_t i = 0;
-		while (i < leaf) {
-			if (all_positions[i] == code)return i;
-			else if (all_positions[i] < code) {
+		while (all_positions[i] != code) {
+			if (all_positions[i] < code) {
 				i = i * 2 + 2;
 			}
 			else {
 				i = i * 2 + 1;
 			}
+			assert(i < all_positions.size());
 		}
-		assert(all_positions[i] == code);
 		return i;
 	}
 
@@ -2018,18 +2016,16 @@ uint64_t c2i_levelwise (const uint64_t c, const std::vector<uint64_t> &table) {
 	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
 	//tableが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
 
-	const uint64_t leaf = (table.size() + 1ULL) / 2ULL;
 	uint64_t i = 0;
-	while(i < leaf) {
-		if (table[i] == c)return i;
-		else if (table[i] < c) {
+	while(table[i] != c) {
+		if (table[i] < c) {
 			i = i * 2 + 2;
 		}
 		else {
 			i = i * 2 + 1;
 		}
+		assert(i < table.size());
 	}
-	assert(table[i] == c);
 	return i;
 }
 
