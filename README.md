@@ -120,6 +120,71 @@ Ostleには『直前の盤面に戻すような指し手を禁じ手とする』
 
 ハッシュテーブル方式のもう一つのデメリットとして、メモリ消費量がハッシュテーブル方式だとおよそ50%増しになる。load factorが70%くらいまでしか上げられないことと予備データが必要であることの2つが原因である。
 
+### 配列を並べ替えて二分探索をキャッシュフレンドリーにする方法について
+
+https://postd.cc/cache-friendly-binary-search/
+
+ソート済み配列を二分探索するとき、アクセスする添字は前後に飛ぶことになる。ところで、任意のiについて、i番目の配列要素が二分探索中にアクセスされるとき、その瞬間にその二分探索のwhile文がn回ループしていたとして、そのnはiから一意に定まる。つまりf(i)=nなる関数fが存在するわけだが、f(i)が小さい配列要素を配列の前方に固めておくことで二分探索をよりキャッシュフレンドリーにできるということが知られている。（上のURLの記事がそれ）
+
+並べ替えの方法の例としては、配列を値そのもので昇順にソートしたあとで「二分探索でn段目にアクセスされる要素」のnで昇順に安定ソートすればいい。nを求めるためには、仮想的に数列を平衡二分探索木とみなして深さ優先でトラバースするとよい。通りがけに数列の要素とレベルの関係を得られる。以下は配列の各要素が55bit以下であるとの仮定のもとで実際に動くコードである。（配列の要素数が2^n-1で表せない場合、平衡二分探索木が完全二分木にならないことに注意して実装する必要がある。上の記事内の例では31要素になっていたが……）
+
+```
+void dfs_binary_tree(const uint64_t index, const uint64_t level, uint64_t &counter, std::vector<uint64_t> &v) {
+
+	if (index * 2 + 1 < v.size()) {
+		dfs_binary_tree(index * 2 + 1, level + 1, counter, v);
+	}
+
+	v[counter++] |= level << 55;
+
+	if (index * 2 + 2 < v.size()) {
+		dfs_binary_tree(index * 2 + 2, level + 1, counter, v);
+	}
+}
+
+void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
+	//vが55bitで収まっていると仮定して、levelwiseに並べ替える。
+
+	std::sort(v.begin(), v.end());
+	assert(v.back() < (1ULL << 55));
+
+	uint64_t counter = 0;
+	dfs_binary_tree(0, 1, counter, v);
+	assert(counter == v.size());
+
+	std::sort(v.begin(), v.end());
+
+	for (uint64_t i = 0; i < v.size(); ++i) {
+		v[i] &= (1ULL << 55) - 1ULL;
+	}
+}
+```
+
+二分探索では、配列を平衡二分探索木(0-origin)とみなして根から葉に向けて見ていくやつを単にやればいい。（以下の通り）
+
+```
+	uint64_t code2index_levelwise(const uint64_t c, const std::vector<uint64_t> &v) {
+		//vのどれかの値cを引数にとり、v[i]=cなるiを探して返す。
+		//vが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
+
+		const uint64_t leaf = (v.size() + 1ULL) / 2ULL;
+		uint64_t i = 0;
+		while (i < leaf) {
+			if (v[i] == c)return i;
+			else if (v[i] < c) {
+				i = i * 2 + 2;
+			}
+			else {
+				i = i * 2 + 1;
+			}
+		}
+		assert(v[i] == c);
+		return i;
+	}
+```
+
+配列のアクセス順序が一様ランダムなテストケースにおいて、このキャッシュフレンドリーにする方法をとることで3倍くらい高速化されることを確認した。しかし、Ostleの完全解析のコードに実際に組み込んで試したところ、むしろ数割遅くなった。そもそもアクセスする配列要素が偏っているのが原因と推測される。
+
 ### undo関数の必要性について
 
 盤面pのポインタと指し手mを引数に取り、mを指して盤面をp'に更新する関数をdo関数と呼ぶ。逆に、p'のポインタとmを引数に取りp'をpに戻す関数をundo関数と呼ぶ。
