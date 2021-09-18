@@ -1985,12 +1985,6 @@ void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
 	}
 	assert(v.back() < (1ULL << 55));
 
-	//for (uint64_t i = 0; i < v.size(); ++i) {
-	//	uint32_t b = 0;
-	//	bitscan_forward64(~i, &b);
-	//	v[i] |= (64ULL - uint64_t(b)) << 55;
-	//}
-
 	uint64_t counter = 0;
 	dfs_binary_tree(0, 1, counter, v);
 	assert(counter == v.size());
