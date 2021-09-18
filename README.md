@@ -167,18 +167,16 @@ void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
 		//vのどれかの値cを引数にとり、v[i]=cなるiを探して返す。
 		//vが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
 
-		const uint64_t leaf = (v.size() + 1ULL) / 2ULL;
 		uint64_t i = 0;
-		while (i < leaf) {
-			if (v[i] == c)return i;
+		while (v[i] != c) {
 			else if (v[i] < c) {
 				i = i * 2 + 2;
 			}
 			else {
 				i = i * 2 + 1;
 			}
+			assert(i < v.size());
 		}
-		assert(v[i] == c);
 		return i;
 	}
 ```
