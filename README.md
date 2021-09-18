@@ -169,7 +169,7 @@ void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
 
 		uint64_t i = 0;
 		while (v[i] != c) {
-			else if (v[i] < c) {
+			if (v[i] < c) {
 				i = i * 2 + 2;
 			}
 			else {
