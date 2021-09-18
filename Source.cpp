@@ -1,4 +1,5 @@
 #include<iostream>
+#include<fstream>
 #include<vector>
 #include<string>
 #include<map>
@@ -224,10 +225,10 @@ std::string code2string(const uint64_t code) {
 	std::string answer = "";
 
 	for (int i = 0; i < 25; ++i) {
-		if (code & (1ULL << (i + 30))) {
+		if (code & (1ULL << (i + 5))) {
 			answer += "1";
 		}
-		else if (code & (1ULL << (i + 5))) {
+		else if (code & (1ULL << (i + 30))) {
 			answer += "2";
 		}
 		else if (pos_hole == i) {
@@ -939,8 +940,79 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 	return true;
 }
 
+const char BASE64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+void encode_base64(const uint64_t code, std::string &dest) {
+	dest.clear();
+	if (code == 0) {
+		dest.push_back(BASE64[0]);
+		return;
+	}
+	for (uint64_t c = code; c; c /= 64) {
+		dest.push_back(BASE64[c % 64]);
+	}
+}
+
+void decode_base64(const std::string &s, uint64_t &dest) {
+	dest = 0;
+	for (uint64_t i = 0; i < s.size(); ++i) {
+		if ('A' <= s[i] && s[i] <= 'Z') {
+			dest += uint64_t(s[i] - 'A') << (i * 6);
+		}
+		else if ('a' <= s[i] && s[i] <= 'z') {
+			dest += (uint64_t(s[i] - 'a') + 26ULL) << (i * 6);
+		}
+		else if ('0' <= s[i] && s[i] <= '9') {
+			dest += (uint64_t(s[i] - '0') + 52ULL) << (i * 6);
+		}
+		else if (s[i] == '+') {
+			dest += 62ULL << (i * 6);
+		}
+		else if (s[i] == '/') {
+			dest += 63ULL << (i * 6);
+		}
+		else {
+			throw "error: failed to decode base64 string.";
+		}
+	}
+}
+
+bool test_base64_func(const uint64_t seed, const int length) {
+
+	std::mt19937_64 rnd(seed);
+	std::uniform_int_distribution<uint64_t>pos_dist(0, 24);
+
+	std::string code;
+
+	for (int i = 0; i < length; ++i) {
+		if (i % (length / 10) == 0) {
+			std::cout << "test_checkmate_detector_func: " << i << " / " << length << std::endl;
+		}
+
+		const uint64_t x = rnd();
+		encode_base64(x, code);
+		uint64_t y = 0;
+		decode_base64(code, y);
+		if (x != y) {
+			std::cout << "test failed." << std::endl;
+			return false;
+		}
+	}
+	std::cout << "test clear!" << std::endl;
+	return true;
+}
 
 
+std::string itos(const uint64_t i, const int width, const char fill) {
+	//整数iをstringに変換する。桁数がwidth未満なら、文字fillを先頭にくっつけて桁数をwidthに揃える。
+
+	const std::string number = std::to_string(i);
+	std::string prefix;
+	while (int(prefix.size() + number.size()) < width) {
+		prefix.push_back(fill);
+	}
+	return prefix + number;
+}
 
 
 class Encoder_AES {
@@ -1065,33 +1137,15 @@ public:
 };
 
 
-template<bool USE_HASH_TABLE, bool PARALLEL>class OstleEnumerator {
+class PositionEnumerator {
 
 private:
 
 	std::vector<uint64_t>positions;
 
-	std::vector<uint64_t>all_positions;
-
-	std::vector<uint64_t>all_solutions;
-
-	std::vector<uint8_t>signature_table;
-
-	Encoder_AES hash_func;
-
 	int num_start_piece;
 
-	enum {
-		UNLABELED = 0,
-		WIN = 1,
-		LOSE = 2,
-		SUICIDE = 100
-	};
-
-	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
-	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
-
-	void position_maker(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
+	void dfs_position(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
 		const int num_remaining_object = num_piece_player + num_piece_opponent + (cursor <= pos_hole ? 1 : 0);
 
@@ -1106,28 +1160,31 @@ private:
 		}
 
 		if (pos_hole == cursor) {
-			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+			dfs_position(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 			return;
 		}
 
 		if (num_remaining_object + cursor < 25) {
-			position_maker(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+			dfs_position(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 		}
 
 		const uint64_t bb_cursor = pdep_intrinsics(1ULL << cursor, BB_ALL_8X8_5X5);
 
 		if (num_piece_player > 0) {
-			position_maker(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
+			dfs_position(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
 		}
 		if (num_piece_opponent > 0) {
-			position_maker(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
+			dfs_position(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
 		}
 	}
 
-	uint64_t position_maker_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent) {
+	uint64_t dfs_position_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent, std::vector<uint64_t> &all_positions, const bool PARALLEL = false) {
+		//穴の位置とコマの数を引数に取り、その条件に沿った盤面を全列挙して、対称な局面を同一視して重複削除してからall_positionsの末尾に加える。返り値は、最終的に加えた盤面の数とする。
 
 		positions.clear();
-		position_maker(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
+		positions.reserve(500'000'000ULL);
+
+		dfs_position(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
 
 		const int64_t siz = positions.size();
 
@@ -1149,15 +1206,93 @@ private:
 		positions.erase(result, positions.end());
 		std::copy(positions.begin(), positions.end(), std::back_inserter(all_positions));
 
-		std::cout << "result: position_maker_root(" << pos_hole << "," << num_piece_player << "," << num_piece_opponent << "): "
-			<< siz << " positions; " << positions.size() << " unique positions." << std::endl;
+		std::cout << "result: dfs_position_root(" << itos(pos_hole, 2, ' ') << "," << num_piece_player << "," << num_piece_opponent << "): "
+			<< itos(uint64_t(siz), 9, ' ') << " positions; " << itos(positions.size(), 9, ' ') << " unique positions." << std::endl;
 
 		return positions.size();
 	}
 
+public:
+
+	PositionEnumerator() {
+		positions.reserve(500'000'000ULL);
+	}
+
+	void do_enumerate(const int start_piece, std::vector<uint64_t> &all_positions, const bool PARALLEL = false) {
+
+		num_start_piece = start_piece;
+
+		const uint64_t holes[6] = { 0,1,2,6,7,12 };
+		uint64_t num_unique_positions = 0;
+
+		std::cout << "LOG: start: dfs_position_root" << std::endl;
+
+		switch (num_start_piece) {
+		case 10:
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 5, all_positions, PARALLEL);
+		case 9:
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 4, all_positions, PARALLEL);
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 5, all_positions, PARALLEL);
+		case 8:
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 4, all_positions, PARALLEL);
+			break;
+		default:
+			assert(false);
+		}
+
+		std::cout << "LOG: finish: dfs_position_root" << std::endl;
+
+		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
+
+		assert(num_unique_positions == all_positions.size());
+
+		std::cout << "LOG: start: sort and verify uniqueness" << std::endl;
+
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
+		}
+
+		for (uint64_t i = 1; i < all_positions.size(); ++i) {
+			assert(all_positions[i - 1] < all_positions[i]);
+		}
+
+		std::cout << "LOG: finish: sort and verify uniqueness" << std::endl;
+
+		return;
+	}
+};
+
+template<bool USE_HASH_TABLE, bool USE_LEVELWISE, bool PARALLEL>class OstleEnumerator {
+
+private:
+
+	std::vector<uint64_t>all_positions;
+
+	std::vector<uint64_t>all_solutions;
+
+	std::vector<uint8_t>signature_table;
+
+	Encoder_AES hash_func;
+
+	int num_start_piece;
+
+	enum {
+		UNLABELED = 0,
+		WIN = 1,
+		LOSE = 2,
+		SUICIDE = 100
+	};
+
+	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
+	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
+
 	bool constract_hashtable_if_hashable(const uint64_t hash_length, const uint64_t hash_seed) {
 		//ハッシュテーブルの長さとハッシュ関数のseed値を引数に取り、all_positionsがそのハッシュテーブルに収まるかどうか調べる。
 		//収まらないならばfalseを返す。収まるならば、ハッシュテーブルを実際に構築してからtrueを返す。
+		//返り値がfalseならば、all_positionsは変更されない。trueならば、all_positionsは変更されうる。（並べ替えられて、ゼロの要素が挿入されることがある）
 
 		assert(USE_HASH_TABLE == true);
 
@@ -1259,6 +1394,8 @@ private:
 	}
 
 	void prepare_for_hashtable() {
+		//all_positionsを並べ替えつつ適切な位置に空白要素を挿入して、ハッシュテーブルとして機能するようにする。
+		//挿入する空白要素の数をできるだけ少なくする（＝load factorをできるだけ大きくする）ため、トライアルアンドエラーを行う。
 
 		assert(USE_HASH_TABLE == true);
 
@@ -1268,6 +1405,12 @@ private:
 		uint64_t hash_seed = 12345;
 
 		for (;; hash_length += hash_length >> 3) {
+
+			if (hash_length >= (1ULL << 32)) {
+				std::cout << "LOG: failed to construct hashtable."<< std::endl;
+				std::exit(0);
+			}
+
 			std::cout << "LOG: start: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << std::endl;
 			const bool b = constract_hashtable_if_hashable(hash_length, hash_seed);
 			if (b)break;
@@ -1275,6 +1418,43 @@ private:
 
 		const double loading_factor = 100.0 * double(num_unique_positions) / double(hash_length);
 		std::cout << "LOG: finish: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << ", loading factor = " << loading_factor << " %" << std::endl;
+	}
+
+	void dfs_binary_tree_and_add_level(const uint64_t index, const uint64_t level, uint64_t &counter) {
+
+		if (index * 2 + 1 < all_positions.size()) {
+			dfs_binary_tree_and_add_level(index * 2 + 1, level + 1, counter);
+		}
+
+		all_positions[counter++] |= level << 55;
+
+		if (index * 2 + 2 < all_positions.size()) {
+			dfs_binary_tree_and_add_level(index * 2 + 2, level + 1, counter);
+		}
+	}
+
+	void shuffle_sorted_to_levelwise() {
+		//all_positionsが昇順にソートされていると仮定して、かつ55bitで収まっていると仮定して、levelwiseに並べ替える。
+
+		for (uint64_t i = 1; i < all_positions.size(); ++i) {
+			assert(all_positions[i - 1] < all_positions[i]);
+		}
+		assert(all_positions.back() < (1ULL << 55));
+
+		uint64_t counter = 0;
+		dfs_binary_tree_and_add_level(0, 1, counter);
+		assert(counter == all_positions.size());
+
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
+		}
+
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			all_positions[i] &= (1ULL << 55) - 1ULL;
+		}
 	}
 
 	uint64_t find(const uint64_t code) {
@@ -1317,6 +1497,7 @@ private:
 		//all_positionsが昇順にソートされていると仮定して二分探索で求める。
 
 		assert(USE_HASH_TABLE == false);
+		assert(USE_LEVELWISE == false);
 
 		uint64_t lower = 0, upper = all_positions.size();
 
@@ -1330,6 +1511,29 @@ private:
 		assert(all_positions[lower] == code);
 		return lower;
 	}
+
+	uint64_t code2index_levelwise(const uint64_t code) {
+		//all_positionsのどれかの値cを引数にとり、all_positions[i]=cなるiを探して返す。
+		//all_positionsが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
+
+		assert(USE_HASH_TABLE == false);
+		assert(USE_LEVELWISE == true);
+
+		const uint64_t leaf = (all_positions.size() + 1ULL) / 2ULL;
+		uint64_t i = 0;
+		while (i < leaf) {
+			if (all_positions[i] == code)return i;
+			else if (all_positions[i] < code) {
+				i = i * 2 + 2;
+			}
+			else {
+				i = i * 2 + 1;
+			}
+		}
+		assert(all_positions[i] == code);
+		return i;
+	}
+
 
 	void check_all_positions_if_checkmate() {
 		//all_positionsの全ての盤面について、手番側が即座に勝利できる局面かどうか調べて、そうならばall_solutionsを更新する。
@@ -1359,7 +1563,7 @@ private:
 
 		const double percentage = 100.0 * double(count_checkmate_position) / double(count_position);
 
-		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << all_positions.size()
+		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << count_position
 			<< " (" << percentage << " %)" << std::endl;
 	}
 
@@ -1403,7 +1607,7 @@ private:
 			const uint64_t next_index =
 				USE_HASH_TABLE ?
 				find(next_code) :
-				code2index(next_code);
+				(USE_LEVELWISE ? code2index_levelwise(next_code) : code2index(next_code));
 
 			if (all_solutions[next_index] == SOLUTION_ALL_WIN) {
 				outcome[i] = LOSE;
@@ -1562,11 +1766,9 @@ private:
 		return updated_num;
 	}
 
-
 public:
 
-	OstleEnumerator(int start_piece) {
-		positions.reserve(500'000'000ULL);
+	OstleEnumerator(const int start_piece) {
 
 		if (start_piece == 10) {
 			all_positions.reserve(2'800'000'000ULL);
@@ -1586,56 +1788,22 @@ public:
 	OstleEnumerator() :OstleEnumerator(8) {}
 
 	void do_enumerate() {
-
-		const uint64_t holes[6] = { 0,1,2,6,7,12 };
-		uint64_t num_unique_positions = 0;
-
-		std::cout << "LOG: start: position_maker_root" << std::endl;
-
-		switch (num_start_piece) {
-		case 10:
-			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 5);
-		case 9:
-			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 5, 4);
-			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 5);
-		case 8:
-			for (int i = 0; i < 6; ++i)num_unique_positions += position_maker_root(holes[i], 4, 4);
-			break;
-		default:
-			assert(false);
-		}
-
-		std::cout << "LOG: finish: position_maker_root" << std::endl;
-
-		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
-
-		assert(num_unique_positions == all_positions.size());
-
-		std::cout << "LOG: start: verify uniqueness and count checkamte positions" << std::endl;
-
-		if (PARALLEL) {
-			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
-		}
-		else {
-			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
-		}
-
-		for (uint64_t i = 1; i < all_positions.size(); ++i) {
-			assert(all_positions[i - 1] < all_positions[i]);
-		}
-
-		std::cout << "LOG: finish: verify uniqueness and count checkamte positions" << std::endl;
-
-		return;
+		PositionEnumerator p;
+		p.do_enumerate(num_start_piece, all_positions, PARALLEL);
 	}
 
 	void retrograde_analysis() {
 
-		std::cout << "LOG: finish: retrograde_analysis." << std::endl;
+		std::cout << "LOG: start: retrograde_analysis" << std::endl;
 
 
 		if (USE_HASH_TABLE) {
 			prepare_for_hashtable();
+		}
+		else {
+			if (USE_LEVELWISE) {
+				shuffle_sorted_to_levelwise();
+			}
 		}
 
 		all_solutions.clear();
@@ -1658,13 +1826,18 @@ public:
 			if (updated_num == 0)break;
 		}
 
-		std::cout << "LOG: finish: retrograde_analysis." << std::endl;
+		std::cout << "LOG: finish: retrograde_analysis" << std::endl;
 	}
 
 	uint64_t calc_final_result_hashvalue() {
 		//全盤面とその解析結果の組に関するハッシュ値を生成して返す。
-		//USE_HASH_TABLE, PARALLELの有無によって計算結果が変わらないはずだが、これを確かめるのに使う。
-		//USE_HASH_TABLEの有無によってall_positionsの中身の順番が異なるので、可換な演算でreduceする必要がある。
+		//USE_HASH_TABLE, USE_LEVELWISE, PARALLELの有無によって計算結果が変わらないはずだが、これを確かめるのに使う。
+		//USE_HASH_TABLE, USE_LEVELWISEの有無によってall_positionsの中身の順番が異なるので、可換な演算でreduceする必要がある。
+
+		assert(all_positions.size() == all_solutions.size());
+		if (USE_HASH_TABLE) {
+			assert(all_positions.size() == signature_table.size());
+		}
 
 		Encoder_AES encoder(123456);
 
@@ -1682,27 +1855,95 @@ public:
 		_mm_storeu_si128((__m128i*)a, answer);
 		return a[0] ^ a[1];
 	}
+
+	void output_results(const std::string filename) {
+
+		assert(all_positions.size() == all_solutions.size());
+		if (USE_HASH_TABLE) {
+			assert(all_positions.size() == signature_table.size());
+		}
+
+		std::ofstream writing_file;
+		uint64_t count = 0;
+		std::string code1, code2;
+		constexpr uint64_t SINGLE_FILE_LIMIT = 1000000;
+
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (USE_HASH_TABLE) {
+				if (signature_table[i] & 0x80U)continue;
+			}
+			if (count % SINGLE_FILE_LIMIT == 0) {
+				if (count) {
+					writing_file.close();
+				}
+				writing_file.open(filename + itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
+			}
+			encode_base64(all_positions[i], code1);
+			encode_base64(all_solutions[i], code2);
+			writing_file << code1 << "," << code2 << std::endl;
+			++count;
+		}
+		if (all_positions.size()) {
+			writing_file.close();
+		}
+	}
 };
 
-
-
-
-uint64_t c2i(const uint64_t c, const std::vector<uint64_t> &table) {
-	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
-	//tableが昇順にソートされていると仮定して二分探索で求める。
-
-	uint64_t lower = 0, upper = table.size();
-
-	while (lower + 1ULL < upper) {
-		const uint64_t mid = (lower + upper) / 2;
-		if (table[mid] == c)return mid;
-		else if (table[mid] <= c)lower = mid;
-		else upper = mid;
-	}
-
-	assert(table[lower] == c);
-	return lower;
+uint64_t enumerate_binarysearch_parallel() {
+	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
+	OstleEnumerator<false, true, true> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_binarysearch_parallel. fingerprint = " << fingerprint << std::endl;
+	return fingerprint;
 }
+
+uint64_t enumerate_binarysearch_serial() {
+	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
+	OstleEnumerator<false, true, false> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint << std::endl;
+	return fingerprint;
+}
+
+uint64_t enumerate_hashtable_parallel() {
+	std::cout << "LOG: start: enumerate_hashtable_parallel" << std::endl;
+	OstleEnumerator<true, true, true> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_hashtable_parallel. fingerprint = " << fingerprint << std::endl;
+	return fingerprint;
+}
+
+uint64_t enumerate_hashtable_serial() {
+	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
+	OstleEnumerator<true, true, false> e;
+	e.do_enumerate();
+	e.retrograde_analysis();
+	const uint64_t fingerprint = e.calc_final_result_hashvalue();
+	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint << std::endl;
+	return fingerprint;
+}
+
+void test_all_strategies() {
+	const uint64_t fingerprint1 = enumerate_binarysearch_parallel();
+	const uint64_t fingerprint2 = enumerate_binarysearch_serial();
+	const uint64_t fingerprint3 = enumerate_hashtable_parallel();
+	const uint64_t fingerprint4 = enumerate_hashtable_serial();
+	assert(fingerprint1 == fingerprint2);
+	assert(fingerprint1 == fingerprint3);
+	assert(fingerprint1 == fingerprint4);
+}
+
+
+
+
+
+
 
 uint64_t shiftxor_forward(uint64_t x, int s) {
 	return x ^ (x >> s);
@@ -1722,13 +1963,92 @@ uint64_t split_mix_64(uint64_t x) {
 	return x;
 }
 
-void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t seed) {
+
+void dfs_binary_tree(const uint64_t index, const uint64_t level, uint64_t &counter, std::vector<uint64_t> &v) {
+
+	if (index * 2 + 1 < v.size()) {
+		dfs_binary_tree(index * 2 + 1, level + 1, counter, v);
+	}
+
+	v[counter++] |= level << 55;
+
+	if (index * 2 + 2 < v.size()) {
+		dfs_binary_tree(index * 2 + 2, level + 1, counter, v);
+	}
+}
+
+void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
+	//vが昇順にソートされていると仮定して、かつ55bitで収まっていると仮定して、levelwiseに並べ替える。
+
+	for (uint64_t i = 1; i < v.size(); ++i) {
+		assert(v[i - 1] < v[i]);
+	}
+	assert(v.back() < (1ULL << 55));
+
+	//for (uint64_t i = 0; i < v.size(); ++i) {
+	//	uint32_t b = 0;
+	//	bitscan_forward64(~i, &b);
+	//	v[i] |= (64ULL - uint64_t(b)) << 55;
+	//}
+
+	uint64_t counter = 0;
+	dfs_binary_tree(0, 1, counter, v);
+	assert(counter == v.size());
+
+	std::sort(std::execution::par, v.begin(), v.end());
+
+	for (uint64_t i = 0; i < v.size(); ++i) {
+		v[i] &= (1ULL << 55) - 1ULL;
+	}
+}
+
+
+uint64_t c2i(const uint64_t c, const std::vector<uint64_t> &table) {
+	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
+	//tableが昇順にソートされていると仮定して二分探索で求める。
+
+	uint64_t lower = 0, upper = table.size();
+
+	while (lower + 1ULL < upper) {
+		const uint64_t mid = (lower + upper) / 2;
+		if (table[mid] == c)return mid;
+		else if (table[mid] <= c)lower = mid;
+		else upper = mid;
+	}
+
+	assert(table[lower] == c);
+	return lower;
+}
+
+uint64_t c2i_levelwise (const uint64_t c, const std::vector<uint64_t> &table) {
+	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
+	//tableが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
+
+	const uint64_t leaf = (table.size() + 1ULL) / 2ULL;
+	uint64_t i = 0;
+	while(i < leaf) {
+		if (table[i] == c)return i;
+		else if (table[i] < c) {
+			i = i * 2 + 2;
+		}
+		else {
+			i = i * 2 + 1;
+		}
+	}
+	assert(table[i] == c);
+	return i;
+}
+
+template<bool LEVELWISE> void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t seed) {
 
 	std::vector<uint64_t>test_table(size);
 
 	test_table[0] = seed;
 	for (uint64_t i = 1; i < size; ++i) {
 		test_table[i] = split_mix_64(test_table[i - 1]);
+	}
+	for (uint64_t i = 0; i < size; ++i) {
+		test_table[i] &= (1ULL << 55) - 1ULL;
 	}
 
 	std::sort(std::execution::par, test_table.begin(), test_table.end());
@@ -1737,13 +2057,17 @@ void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t
 		assert(test_table[i - 1] < test_table[i]);
 	}
 
-	std::cout << "LOG: start: speedtest_c2i " << std::endl;
+	if (LEVELWISE) {
+		shuffle_sorted_to_levelwise(test_table);
+	}
+
+	std::cout << "LOG: start: speedtest_c2i " << (LEVELWISE ? "LEVELWISE" : "") <<std::endl;
 	const auto t = std::chrono::system_clock::now();
 
 	const uint64_t N = std::min(num_trial, size);
 	uint64_t result = 0;
 	for (uint64_t i = 0, c = seed; i < N; ++i, c = split_mix_64(c)) {
-		const uint64_t x = c2i(c, test_table);
+		const uint64_t x = LEVELWISE ? c2i_levelwise(c & ((1ULL << 55) - 1ULL), test_table) : c2i(c & ((1ULL << 55) - 1ULL), test_table);
 		result += x;
 	}
 
@@ -1752,57 +2076,13 @@ void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t
 	std::cout << "LOG: result = " << result << ", size = " << size << ", num_trial = " << N << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
 }
 
-
-
-uint64_t enumerate_binarysearch_parallel() {
-	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
-	OstleEnumerator<false, true> e;
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_binarysearch_parallel. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
+void speedtest_binarysearch() {
+	const uint64_t size = 100'000'000ULL;
+	const uint64_t num_trial = 100'000'000ULL;
+	speedtest_c2i<true>(size, num_trial, 12345);
+	speedtest_c2i<false>(size, num_trial, 12345);
 }
 
-uint64_t enumerate_binarysearch_serial() {
-	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
-	OstleEnumerator<false, false> e;
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
-uint64_t enumerate_hashtable_parallel() {
-	std::cout << "LOG: start: enumerate_hashtable_parallel" << std::endl;
-	OstleEnumerator<true, true> e;
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_hashtable_parallel. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
-uint64_t enumerate_hashtable_serial() {
-	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
-	OstleEnumerator<true, false> e;
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
-void test_all_strategies() {
-	const uint64_t fingerprint1 = enumerate_binarysearch_parallel();
-	const uint64_t fingerprint2 = enumerate_binarysearch_serial();
-	const uint64_t fingerprint3 = enumerate_hashtable_parallel();
-	const uint64_t fingerprint4 = enumerate_hashtable_serial();
-	assert(fingerprint1 == fingerprint2);
-	assert(fingerprint1 == fingerprint3);
-	assert(fingerprint1 == fingerprint4);
-}
 
 
 void unittests() {
@@ -1810,6 +2090,7 @@ void unittests() {
 	test_move(12345, 100000);
 	test_checkmate_detector_func(12345, 100000);
 	test_bitboard_symmetry(12345, 100000);
+	test_base64_func(12345, 100000);
 
 	std::exit(0);
 }
@@ -1818,14 +2099,34 @@ int main(int argc, char *argv[]) {
 
 	init_move_tables();
 
-	//speedtest_c2i(1'000'000'000ULL, 100'000'000ULL, 12345);
-	//return 0;
+	//speedtest_binarysearch();
 
 	//unittests();
 
-	test_all_strategies();
+	//test_all_strategies();
 
-
+	{
+		const auto t = std::chrono::system_clock::now();
+		OstleEnumerator<false, true, true>e(8);
+		e.do_enumerate();
+		e.retrograde_analysis();
+		//e.output_results("ostle_output");
+		const auto s = std::chrono::system_clock::now();
+		const auto n = e.calc_final_result_hashvalue();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "LEVELWISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
+	}
+	{
+		const auto t = std::chrono::system_clock::now();
+		OstleEnumerator<false, false, true>e(8);
+		e.do_enumerate();
+		e.retrograde_analysis();
+		//e.output_results("ostle_output");
+		const auto s = std::chrono::system_clock::now();
+		const auto n = e.calc_final_result_hashvalue();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "NOT LEVELEISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
+	}
 
 
 	return 0;
