@@ -199,6 +199,7 @@ uint64_t horizontal_mirror_ostle_5x5_bitboard(uint64_t b) {
 }
 
 uint64_t encode_ostle(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole) {
+	//引数で受け取った盤面情報を、[0,2^55)の整数に可逆圧縮して返す。
 	assert(pos_hole < 25);
 	assert((bb_player & BB_ALL_8X8_5X5) == bb_player);
 	assert((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent);
@@ -210,6 +211,7 @@ uint64_t encode_ostle(const uint64_t bb_player, const uint64_t bb_opponent, cons
 	return answer;
 }
 void decode_ostle(const uint64_t code, uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole) {
+	//encode_ostleで圧縮された値codeを受け取り、盤面を復元して残り3つの引数に代入する。
 	assert(code < (1ULL << 55));
 	assert((code % 32) < 25);
 
@@ -218,30 +220,9 @@ void decode_ostle(const uint64_t code, uint64_t &bb_player, uint64_t &bb_opponen
 	bb_opponent = pdep_intrinsics(code >> 5, BB_ALL_8X8_5X5);
 }
 
-std::string code2string(const uint64_t code) {
-
-	const uint64_t pos_hole = code % 32;
-
-	std::string answer = "";
-
-	for (int i = 0; i < 25; ++i) {
-		if (code & (1ULL << (i + 5))) {
-			answer += "1";
-		}
-		else if (code & (1ULL << (i + 30))) {
-			answer += "2";
-		}
-		else if (pos_hole == i) {
-			answer += "3";
-		}
-		else {
-			answer += "0";
-		}
-	}
-	return answer;
-}
-
-uint64_t code_symmetry_naive(const int s, uint64_t code) {
+uint64_t code_symmetry_naive(const uint32_t s, uint64_t code) {
+	//encode_ostleで圧縮された値codeを、対称な盤面に変化させる。
+	//変化させる方法は7通りあるが、引数sの下位3bitで指定される。
 
 	uint64_t bb1 = 0, bb2 = 0, pos = 0;
 	decode_ostle(code, bb1, bb2, pos);
@@ -265,7 +246,9 @@ uint64_t code_symmetry_naive(const int s, uint64_t code) {
 	return encode_ostle(bb1, bb2, pos);
 }
 
-uint64_t code_symmetry(const int s, uint64_t code) {
+uint64_t code_symmetry(const uint32_t s, uint64_t code) {
+	//encode_ostleで圧縮された値codeを、対称な盤面に変化させる。
+	//変化させる方法は7通りあるが、引数sの下位3bitで指定される。
 
 	if (s & 1)code = horizontal_mirror_ostle_5x5_bitboard(code);
 	if (s & 2)code = vertical_mirror_ostle_5x5_bitboard(code);
@@ -275,10 +258,13 @@ uint64_t code_symmetry(const int s, uint64_t code) {
 }
 
 uint64_t code_unique_naive(const uint64_t code) {
+	//encode_ostleで圧縮された値codeを、対称な盤面に変化させてもよいとしたとき、
+	//変換後のcodeを整数として見たときの値が最も小さくなるような変換がどれか調べて、それを作用させた結果のcodeを返す。
+	//これは対称な局面を同一視する操作そのものである。
 
 	uint64_t answer = code;
 
-	for (int i = 1; i <= 7; ++i) {
+	for (uint32_t i = 1; i <= 7; ++i) {
 		const uint64_t new_code = code_symmetry_naive(i, code);
 		answer = std::min(answer, new_code);
 	}
@@ -287,24 +273,15 @@ uint64_t code_unique_naive(const uint64_t code) {
 }
 
 uint64_t code_unique(const uint64_t code) {
+	//encode_ostleで圧縮された値codeを、対称な盤面に変化させてもよいとしたとき、
+	//変換後のcodeを整数として見たときの値が最も小さくなるような変換がどれか調べて、それを作用させた結果のcodeを返す。
+	//これは対称な局面を同一視する操作そのものである。
 
 	uint64_t answer = code;
 
-	for (int i = 1; i <= 7; ++i) {
+	for (uint32_t i = 1; i <= 7; ++i) {
 		const uint64_t new_code = code_symmetry(i, code);
 		answer = std::min(answer, new_code);
-	}
-
-	return answer;
-}
-
-std::string code_2_unique_string(const uint64_t code) {
-
-	std::string answer = code2string(code);
-
-	for (int i = 1; i <= 7; ++i) {
-		const std::string new_answer = code2string(code_symmetry(i, code));
-		answer = std::min(answer, new_answer);
 	}
 
 	return answer;
@@ -401,9 +378,6 @@ typedef std::array<uint8_t, 32> Moves; //下位5bitは着手位置、上位2bit�
 
 constexpr uint64_t pos_diff[4] = { -5, 5, -1, 1 };
 
-alignas(32) const static uint8_t pos_2_8x8_5x5_table[32] = { 0,1,2,3,4,8,9,10,11,12,16,17,18,19,20,24,25,26,27,28,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
-
-
 constexpr uint8_t oneline_bb2index[33] =
 {
 	0,
@@ -428,11 +402,15 @@ constexpr uint64_t BB_ONELINE_VERTICAL_8X8_5X5[5] = {
 	0x0000'0010'1010'1010ULL
 };
 
-uint8_t do_move_table[2][5][6][32][32][3] = {};//[a][b][c][d][e][f] a:プラス方向かマイナス方向か b:着手位置 c:穴の有無と位置 d:playerのbitboard e:opponentのbitboard f:着手後のplayer,opponentのbbと補助情報
-uint8_t undo_move_table[2][5][6][32][32][6][2] = {};//[a][b][c][d][e][f][g] a:プラス方向かマイナス方向か b:着手位置 c:穴の有無と位置 d:playerのbitboard e:opponentのbitboard f:補助情報 g:着手前のplayer,opponentのbb
-//2*5*6*32*32*(3+6*2)=921,600.  1メガバイト程度のテーブルになる。
+//[a][b][c][d][e][f] a:プラス方向かマイナス方向か b:着手位置 c:穴の有無と位置 d:playerのbitboard e:opponentのbitboard f:着手後のplayer,opponentのbbと補助情報
+uint8_t do_move_table[2][5][6][32][32][3] = {};//2*5*6*32*32*3 = 184,320 
+
+//[a][b][c][d][e][f][g] a:プラス方向かマイナス方向か b:着手位置 c:穴の有無と位置 d:playerのbitboard e:opponentのbitboard f:補助情報 g:着手前のplayer,opponentのbb
+uint8_t undo_move_table[2][5][6][32][32][6][2] = {};//2*5*6*32*32*6*2 = 737,280
+
 
 void init_move_tables() {
+	//do_move_tableとundo_move_tableを構築する。プログラム開始時に呼ぶ必要がある。
 
 	//冪等性を保つためにここで全部ゼロ埋めする。
 	for (int a = 0; a < 2; ++a) {
@@ -541,7 +519,7 @@ void init_move_tables() {
 
 void generate_moves(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, Moves& moves) {
 	//合法手を全列挙する。
-	//直前の局面に戻る手は反則だが、ここでは気にせず生成する。
+	//直前の局面に戻る手は反則だが、ここでは気にせず生成する。自殺する手も生成することに注意。
 
 	assert((bb_player & BB_ALL_8X8_5X5) == bb_player);
 	assert((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent);
@@ -807,7 +785,7 @@ bool is_checkmate_naive(const uint64_t bb_player, const uint64_t bb_opponent, co
 	return false;
 }
 
-bool is_checkmate_1(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole) {
+bool is_checkmate_slow(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole) {
 	//player(手番側)にある指し手cが存在して、cを指すと相手のコマが3個になる⇔即勝利局面である⇔trueを返す。
 
 	if (_mm_popcnt_u64(bb_opponent) != 4)return false;
@@ -816,7 +794,7 @@ bool is_checkmate_1(const uint64_t bb_player, const uint64_t bb_opponent, const 
 
 	//key observation:
 	//相手のコマを横プラス方向に押し出すことができる⇔自分のコマのbitboardを1bit左シフトして、相手のコマのbitboardに加算すれば、繰り上がりにより場外のビットが立つ。
-	//(ただし左シフトした瞬間に場外に出るコマは加算の前に除外しておく必要がある)
+	//(ただし左シフトした瞬間に場外に出る自分のコマは加算の前に除外しておく必要がある)
 	{
 		const uint64_t bb_outside = (~BB_ALL_8X8_5X5) | bb_hole;
 		if ((((bb_player << 1) & (~bb_outside)) + bb_opponent) & bb_outside) {
@@ -923,14 +901,14 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 		const uint64_t bb2 = fill_func();
 
 		const bool b1 = is_checkmate_naive(bb1, bb2, pos);
-		const bool b2 = is_checkmate_1(bb1, bb2, pos);
+		const bool b2 = is_checkmate_slow(bb1, bb2, pos);
 		const bool b3 = is_checkmate(bb1, bb2, pos);
 
 		if (b1 != b2 || b1 != b3) {
 			std::cout << "test failed." << std::endl;
 			visualize_ostle(bb1, bb2, pos);
 			const bool b1_ = is_checkmate_naive(bb1, bb2, pos, true);
-			const bool b2_ = is_checkmate_1(bb1, bb2, pos);
+			const bool b2_ = is_checkmate_slow(bb1, bb2, pos);
 			const bool b3_ = is_checkmate(bb1, bb2, pos);
 			return false;
 		}
@@ -938,6 +916,51 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 	}
 	std::cout << "test clear!" << std::endl;
 	return true;
+}
+
+void encode_25numbers(const uint64_t code, std::string &dest) {
+	//encode_ostleで圧縮された値codeを受け取り、盤面を25文字の可読なフォーマットに変換してdestに代入する。
+	//5*5マスの盤面を一列に並べたとして、'1'は手番側のコマ、'2'は相手のコマ、'3'は穴、'0'は空白マスを意味する。
+
+	const uint64_t pos_hole = code % 32;
+
+	dest.clear();
+
+	for (int i = 0; i < 25; ++i) {
+		if (code & (1ULL << (i + 30))) {
+			dest += "1";
+		}
+		else if (code & (1ULL << (i + 5))) {
+			dest += "2";
+		}
+		else if (pos_hole == i) {
+			dest += "3";
+		}
+		else {
+			dest += "0";
+		}
+	}
+}
+
+void decode_25numbers(const std::string &s, uint64_t &dest) {
+	//encode_25numbersで変換された文字列sを受け取り、盤面を25文字の可読なフォーマットに変換して返す。
+	//5*5マスの盤面を一列に並べたとして、'1'は手番側のコマ、'2'は相手のコマ、'3'は穴、'0'は空白マスを意味する。
+
+	dest = 0;
+	for (uint64_t i = 0; i < 25; ++i) {
+		if (s[i] == '0') {
+			continue;
+		}
+		else if (s[i] == '1') {
+			dest += 1ULL << (i + 30);
+		}
+		else if (s[i] == '2') {
+			dest += 1ULL << (i + 5);
+		}
+		else if (s[i] == '3') {
+			dest += i;
+		}
+	}
 }
 
 const char BASE64[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -1003,7 +1026,7 @@ bool test_base64_func(const uint64_t seed, const int length) {
 }
 
 
-std::string itos(const uint64_t i, const int width, const char fill) {
+std::string my_itos(const uint64_t i, const int width, const char fill) {
 	//整数iをstringに変換する。桁数がwidth未満なら、文字fillを先頭にくっつけて桁数をwidthに揃える。
 
 	const std::string number = std::to_string(i);
@@ -1016,6 +1039,7 @@ std::string itos(const uint64_t i, const int width, const char fill) {
 
 
 class Encoder_AES {
+	//自作ハッシュテーブルのハッシュ関数としてAES暗号を流用する。
 
 	//cf: https://gist.github.com/acapola/d5b940da024080dfaf5f
 
@@ -1206,8 +1230,8 @@ private:
 		positions.erase(result, positions.end());
 		std::copy(positions.begin(), positions.end(), std::back_inserter(all_positions));
 
-		std::cout << "result: dfs_position_root(" << itos(pos_hole, 2, ' ') << "," << num_piece_player << "," << num_piece_opponent << "): "
-			<< itos(uint64_t(siz), 9, ' ') << " positions; " << itos(positions.size(), 9, ' ') << " unique positions." << std::endl;
+		std::cout << "result: dfs_position_root(" << my_itos(pos_hole, 2, ' ') << "," << num_piece_player << "," << num_piece_opponent << "): "
+			<< my_itos(uint64_t(siz), 9, ' ') << " positions; " << my_itos(positions.size(), 9, ' ') << " unique positions." << std::endl;
 
 		return positions.size();
 	}
@@ -1874,7 +1898,7 @@ public:
 				if (count) {
 					writing_file.close();
 				}
-				writing_file.open(filename + itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
+				writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
 			}
 			encode_base64(all_positions[i], code1);
 			encode_base64(all_solutions[i], code2);
