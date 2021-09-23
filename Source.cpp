@@ -2139,7 +2139,7 @@ int main(int argc, char *argv[]) {
 
 		return 0;
 	}
-	else if (argc == 3 && std::string(argv[1]) == std::string("test")) {
+	else if (argc == 2 && std::string(argv[1]) == std::string("test")) {
 		unittests();
 		test_all_strategies();
 		speedtest_binarysearch();
