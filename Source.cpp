@@ -1959,6 +1959,7 @@ void test_all_strategies() {
 	assert(fingerprint1 == fingerprint2);
 	assert(fingerprint1 == fingerprint3);
 	assert(fingerprint1 == fingerprint4);
+	std::cout << "test clear!" << std::endl;
 }
 
 
@@ -2065,7 +2066,7 @@ template<bool LEVELWISE> void speedtest_c2i(const uint64_t size, const uint64_t 
 		test_table[i] &= (1ULL << 55) - 1ULL;
 	}
 
-	std::sort(std::execution::par, test_table.begin(), test_table.end());
+	std::sort(test_table.begin(), test_table.end());
 
 	for (uint64_t i = 1; i < size; ++i) {
 		assert(test_table[i - 1] < test_table[i]);
@@ -2075,7 +2076,7 @@ template<bool LEVELWISE> void speedtest_c2i(const uint64_t size, const uint64_t 
 		shuffle_sorted_to_levelwise(test_table);
 	}
 
-	std::cout << "LOG: start: speedtest_c2i " << (LEVELWISE ? "LEVELWISE" : "") <<std::endl;
+	std::cout << "LOG: start: speedtest_c2i : " << (LEVELWISE ? "LEVELWISE" : "NOT LEVELWISE") <<std::endl;
 	const auto t = std::chrono::system_clock::now();
 
 	const uint64_t N = std::min(num_trial, size);
@@ -2106,12 +2107,52 @@ void unittests() {
 	test_bitboard_symmetry(12345, 100000);
 	test_base64_func(12345, 100000);
 
+	std::cout << "test clear!" << std::endl;
 	std::exit(0);
 }
 
+
+
 int main(int argc, char *argv[]) {
 
+	//uint64_tがなにかのエイリアスであることは規定されているが、unsigned long longのエイリアスであるとは限らない。
+	//処理系によってはlongが64bitでuint64_tがunsigned longのエイリアスであることもある。（言語仕様で許容されている）
+	//整数リテラルの末尾にULLを付けるとunsigned long long型であることが明示される。uint64_tではなくunsigned long longになることが問題である。
+	//例えばstd::max関数は2つの引数が同じ型でなければならないのだが、uint64_tとunsigned long longを入れたときにコンパイルエラーになる可能性が処理系によってありうる。
+	//以下のstatic_assertは、そういう処理系を検知してコンパイルエラーにする。
+	static_assert(std::is_same<uint64_t, unsigned long long>::value);
+	static_assert(std::is_same<int64_t, long long>::value);
+	static_assert(std::is_same<uint32_t, unsigned int>::value);
+	static_assert(std::is_same<int32_t, int>::value);
+	static_assert(std::is_same<uint64_t, size_t>::value);
+
 	init_move_tables();
+
+	if (argc == 3 && argv[1] == "go" && (argv[3] == "parallel" || argv[3] == "serial")) {
+		std::cout << "LOG: start: analyze the all positions" << std::endl;
+		const auto t = std::chrono::system_clock::now();
+
+		uint64_t fingerprint = 0;
+		if (argv[3] == "parallel") {
+			OstleEnumerator<false, false, true>e(10);
+			e.do_enumerate();
+			e.retrograde_analysis();
+			e.output_results("ostle_output");
+			fingerprint = e.calc_final_result_hashvalue();
+		}
+		else {
+			OstleEnumerator<false, false, false>e(10);
+			e.do_enumerate();
+			e.retrograde_analysis();
+			e.output_results("ostle_output");
+			fingerprint = e.calc_final_result_hashvalue();
+		}
+		const auto s = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+
+		return 0;
+	}
 
 	//speedtest_binarysearch();
 
