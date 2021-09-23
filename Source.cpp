@@ -1789,7 +1789,7 @@ public:
 		num_start_piece = start_piece;
 	}
 
-	OstleEnumerator() :OstleEnumerator(8) {}
+	OstleEnumerator() = delete;
 
 	void do_enumerate() {
 		PositionEnumerator p;
@@ -1895,7 +1895,7 @@ public:
 
 uint64_t enumerate_binarysearch_parallel() {
 	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
-	OstleEnumerator<false, true, true> e;
+	OstleEnumerator<false, true, true> e(8);
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
@@ -1905,7 +1905,7 @@ uint64_t enumerate_binarysearch_parallel() {
 
 uint64_t enumerate_binarysearch_serial() {
 	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
-	OstleEnumerator<false, true, false> e;
+	OstleEnumerator<false, true, false> e(8);
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
@@ -1915,7 +1915,7 @@ uint64_t enumerate_binarysearch_serial() {
 
 uint64_t enumerate_hashtable_parallel() {
 	std::cout << "LOG: start: enumerate_hashtable_parallel" << std::endl;
-	OstleEnumerator<true, true, true> e;
+	OstleEnumerator<true, true, true> e(8);
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
@@ -1925,7 +1925,7 @@ uint64_t enumerate_hashtable_parallel() {
 
 uint64_t enumerate_hashtable_serial() {
 	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
-	OstleEnumerator<true, true, false> e;
+	OstleEnumerator<true, true, false> e(8);
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
@@ -2142,28 +2142,28 @@ int main(int argc, char *argv[]) {
 
 	//test_all_strategies();
 
-	{
-		const auto t = std::chrono::system_clock::now();
-		OstleEnumerator<false, true, true>e(8);
-		e.do_enumerate();
-		e.retrograde_analysis();
-		//e.output_results("ostle_output");
-		const auto s = std::chrono::system_clock::now();
-		const auto n = e.calc_final_result_hashvalue();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LEVELWISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
-	}
-	{
-		const auto t = std::chrono::system_clock::now();
-		OstleEnumerator<false, false, true>e(8);
-		e.do_enumerate();
-		e.retrograde_analysis();
-		//e.output_results("ostle_output");
-		const auto s = std::chrono::system_clock::now();
-		const auto n = e.calc_final_result_hashvalue();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "NOT LEVELEISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
-	}
+	//{
+	//	const auto t = std::chrono::system_clock::now();
+	//	OstleEnumerator<false, true, true>e(8);
+	//	e.do_enumerate();
+	//	e.retrograde_analysis();
+	//	//e.output_results("ostle_output");
+	//	const auto s = std::chrono::system_clock::now();
+	//	const auto n = e.calc_final_result_hashvalue();
+	//	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+	//	std::cout << "LEVELWISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
+	//}
+	//{
+	//	const auto t = std::chrono::system_clock::now();
+	//	OstleEnumerator<false, false, true>e(8);
+	//	e.do_enumerate();
+	//	e.retrograde_analysis();
+	//	//e.output_results("ostle_output");
+	//	const auto s = std::chrono::system_clock::now();
+	//	const auto n = e.calc_final_result_hashvalue();
+	//	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+	//	std::cout << "NOT LEVELEISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
+	//}
 
 
 	return 0;
