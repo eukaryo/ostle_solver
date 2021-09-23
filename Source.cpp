@@ -20,7 +20,6 @@
 #include<functional>
 #include<limits>
 #include<exception>
-#include<execution>
 
 #include <mmintrin.h>
 #include <xmmintrin.h>
@@ -1217,14 +1216,13 @@ private:
 			for (int64_t i = 0; i < siz; ++i) {
 				positions[i] = code_unique(positions[i]);
 			}
-			std::sort(std::execution::par, positions.begin(), positions.end());
 		}
 		else {
 			for (uint64_t i = 0; i < positions.size(); ++i) {
 				positions[i] = code_unique(positions[i]);
 			}
-			std::sort(std::execution::seq, positions.begin(), positions.end());
 		}
+		std::sort(positions.begin(), positions.end());
 
 		const auto result = std::unique(positions.begin(), positions.end());
 		positions.erase(result, positions.end());
@@ -1272,12 +1270,7 @@ public:
 
 		std::cout << "LOG: start: sort and verify uniqueness" << std::endl;
 
-		if (PARALLEL) {
-			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
-		}
-		else {
-			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
-		}
+		std::sort(all_positions.begin(), all_positions.end());
 
 		for (uint64_t i = 1; i < all_positions.size(); ++i) {
 			assert(all_positions[i - 1] < all_positions[i]);
@@ -1363,14 +1356,8 @@ private:
 		//
 
 		//配列all_positionsをハッシュ値の昇順で並べ替える。
-		if (PARALLEL) {
-			std::sort(std::execution::par, all_positions.begin(), all_positions.end(),
-				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
-		}
-		else {
-			std::sort(std::execution::seq, all_positions.begin(), all_positions.end(),
-				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
-		}
+		std::sort(all_positions.begin(), all_positions.end(),
+			[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
 
 		//配列all_positionsがハッシュテーブルの長さになるように、配列の先頭にゼロを付加する。
 		assert(hash_length + 31ULL >= all_positions.size());
@@ -1469,12 +1456,7 @@ private:
 		dfs_binary_tree_and_add_level(0, 1, counter);
 		assert(counter == all_positions.size());
 
-		if (PARALLEL) {
-			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
-		}
-		else {
-			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
-		}
+		std::sort(all_positions.begin(), all_positions.end());
 
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
 			all_positions[i] &= (1ULL << 55) - 1ULL;
@@ -2012,7 +1994,7 @@ void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
 	dfs_binary_tree(0, 1, counter, v);
 	assert(counter == v.size());
 
-	std::sort(std::execution::par, v.begin(), v.end());
+	std::sort(v.begin(), v.end());
 
 	for (uint64_t i = 0; i < v.size(); ++i) {
 		v[i] &= (1ULL << 55) - 1ULL;
