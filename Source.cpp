@@ -1008,7 +1008,7 @@ bool test_base64_func(const uint64_t seed, const int length) {
 
 	for (int i = 0; i < length; ++i) {
 		if (i % (length / 10) == 0) {
-			std::cout << "test_checkmate_detector_func: " << i << " / " << length << std::endl;
+			std::cout << "test_base64_func: " << i << " / " << length << std::endl;
 		}
 
 		const uint64_t x = rnd();
@@ -1867,10 +1867,14 @@ public:
 			assert(all_positions.size() == signature_table.size());
 		}
 
+		constexpr int BUFSIZE = 2 * 1024 * 1024;
+		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic
+
 		std::ofstream writing_file;
+		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
 		uint64_t count = 0;
 		std::string code1, code2;
-		constexpr uint64_t SINGLE_FILE_LIMIT = 1000000;
+		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
 
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
 			if (USE_HASH_TABLE) {
@@ -2090,7 +2094,6 @@ void unittests() {
 	test_base64_func(12345, 100000);
 
 	std::cout << "test clear!" << std::endl;
-	std::exit(0);
 }
 
 
@@ -2102,11 +2105,12 @@ int main(int argc, char *argv[]) {
 	//整数リテラルの末尾にULLを付けるとunsigned long long型であることが明示される。uint64_tではなくunsigned long longになることが問題である。
 	//例えばstd::max関数は2つの引数が同じ型でなければならないのだが、uint64_tとunsigned long longを入れたときにコンパイルエラーになる可能性が処理系によってありうる。
 	//以下のstatic_assertは、そういう処理系を検知してコンパイルエラーにする。
-	static_assert(std::is_same<uint64_t, unsigned long long>::value);
-	static_assert(std::is_same<int64_t, long long>::value);
-	static_assert(std::is_same<uint32_t, unsigned int>::value);
-	static_assert(std::is_same<int32_t, int>::value);
-	static_assert(std::is_same<uint64_t, size_t>::value);
+
+	//static_assert(std::is_same<uint64_t, unsigned long long>::value);
+	//static_assert(std::is_same<int64_t, long long>::value);
+	//static_assert(std::is_same<uint32_t, unsigned int>::value);
+	//static_assert(std::is_same<int32_t, int>::value);
+	//static_assert(std::is_same<uint64_t, size_t>::value);
 
 	init_move_tables();
 
@@ -2135,35 +2139,25 @@ int main(int argc, char *argv[]) {
 
 		return 0;
 	}
-
-	//speedtest_binarysearch();
-
-	//unittests();
-
-	//test_all_strategies();
-
-	//{
-	//	const auto t = std::chrono::system_clock::now();
-	//	OstleEnumerator<false, true, true>e(8);
-	//	e.do_enumerate();
-	//	e.retrograde_analysis();
-	//	//e.output_results("ostle_output");
-	//	const auto s = std::chrono::system_clock::now();
-	//	const auto n = e.calc_final_result_hashvalue();
-	//	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-	//	std::cout << "LEVELWISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
-	//}
-	//{
-	//	const auto t = std::chrono::system_clock::now();
-	//	OstleEnumerator<false, false, true>e(8);
-	//	e.do_enumerate();
-	//	e.retrograde_analysis();
-	//	//e.output_results("ostle_output");
-	//	const auto s = std::chrono::system_clock::now();
-	//	const auto n = e.calc_final_result_hashvalue();
-	//	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-	//	std::cout << "NOT LEVELEISE: time = " << elapsed << ", fingerprint = " << n << std::endl;
-	//}
+	else if (argc == 3 && std::string(argv[1]) == std::string("test")) {
+		unittests();
+		test_all_strategies();
+		speedtest_binarysearch();
+		return 0;
+	}
+	else {
+		std::cout << "LOG: notice: no command-line input" << std::endl;
+		std::cout << "LOG: start: analyze (4,4) positions" << std::endl;
+		const auto t = std::chrono::system_clock::now();
+		OstleEnumerator<false, false, true>e(8);
+		e.do_enumerate();
+		e.retrograde_analysis();
+		e.output_results("ostle_output");
+		const auto s = std::chrono::system_clock::now();
+		const auto fingerprint = e.calc_final_result_hashvalue();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "LOG: finish: analyze (4,4) positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+	}
 
 
 	return 0;
