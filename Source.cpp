@@ -2110,12 +2110,12 @@ int main(int argc, char *argv[]) {
 
 	init_move_tables();
 
-	if (argc == 3 && argv[1] == "go" && (argv[3] == "parallel" || argv[3] == "serial")) {
+	if (argc == 3 && argv[1] == "go" && (argv[2] == "parallel" || argv[2] == "serial")) {
 		std::cout << "LOG: start: analyze the all positions" << std::endl;
 		const auto t = std::chrono::system_clock::now();
 
 		uint64_t fingerprint = 0;
-		if (argv[3] == "parallel") {
+		if (argv[2] == "parallel") {
 			OstleEnumerator<false, false, true>e(10);
 			e.do_enumerate();
 			e.retrograde_analysis();
