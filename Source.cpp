@@ -52,8 +52,109 @@ inline uint32_t bitscan_forward64(const uint64_t x, uint32_t *dest) {
 
 }
 
-inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return _pdep_u64(a, mask); }
-inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return _pext_u64(a, mask); }
+
+alignas(64) static __m128i pdep_table_16_pshufb[16];
+alignas(64) static __m128i pext_table_16_pshufb[16];
+
+void init_pdep_pext_pshufb_tables() {
+
+	for (uint64_t x = 0; x < 16; ++x) {
+		uint8_t tmp[16];
+		for (uint64_t y = 0; y < 16; ++y) {
+			const uint64_t p = pdep_intrinsics(x, y);
+			assert(p < 16ULL);
+			tmp[y] = (uint8_t)p;
+		}
+		pdep_table_16_pshufb[x] = _mm_loadu_si128((__m128i*)tmp);
+	}
+
+	for (uint64_t x = 0; x < 16; ++x) {
+		uint8_t tmp[16];
+		for (uint64_t y = 0; y < 16; ++y) {
+			const uint64_t p = pext_intrinsics(x, y);
+			assert(p < 16ULL);
+			tmp[y] = (uint8_t)p;
+		}
+		pext_table_16_pshufb[x] = _mm_loadu_si128((__m128i*)tmp);
+	}
+}
+
+uint64_t pdep_pshufb(uint64_t a, uint64_t mask) {
+
+	const __m128i mask_lo = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0x0F0F'0F0F'0F0F'0F0FULL));
+	const __m128i mask_hi = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0xF0F0'F0F0'F0F0'F0F0ULL) >> 4);
+
+	uint64_t mask_pop4 = mask
+		- ((mask >> 1) & 0x7777777777777777ULL)
+		- ((mask >> 2) & 0x3333333333333333ULL)
+		- ((mask >> 3) & 0x1111111111111111ULL);
+
+	__m128i bytemask = _mm_set_epi64x(0, 0xFF);
+	__m128i answer = _mm_setzero_si128();
+
+	for (int i = 0; i < 8; ++i) {
+
+		const __m128i x_lo = _mm_shuffle_epi8(pdep_table_16_pshufb[a % 16], mask_lo);
+		a >>= mask_pop4 % 16;
+		mask_pop4 /= 16;
+		const __m128i x_hi = _mm_shuffle_epi8(pdep_table_16_pshufb[a % 16], mask_hi);
+		a >>= mask_pop4 % 16;
+		mask_pop4 /= 16;
+
+		answer = _mm_or_si128(answer, _mm_and_si128(bytemask, _mm_or_si128(x_lo, _mm_slli_epi64(x_hi, 4))));
+		bytemask = _mm_slli_epi64(bytemask, 8);
+	}
+
+	return (uint64_t)_mm_cvtsi128_si64(answer);
+}
+
+uint64_t pext_pshufb(uint64_t a, uint64_t mask) {
+
+	__m128i mask_lo = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0x0F0F'0F0F'0F0F'0F0FULL));
+	__m128i mask_hi = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0xF0F0'F0F0'F0F0'F0F0ULL) >> 4);
+
+	uint64_t mask_pop4 = mask
+		- ((mask >> 1) & 0x7777777777777777ULL)
+		- ((mask >> 2) & 0x3333333333333333ULL)
+		- ((mask >> 3) & 0x1111111111111111ULL);
+
+	__m128i bytemask = _mm_set_epi64x(0, 0xFF);
+	__m128i answer = _mm_setzero_si128();
+
+	uint64_t acc_pop = 0;
+
+	for (int i = 0; i < 8; ++i) {
+
+		const __m128i x_lo = _mm_shuffle_epi8(pext_table_16_pshufb[a % 16], mask_lo);
+		const uint64_t lo_pop = mask_pop4 % 16;
+		a /= 16;
+		mask_pop4 /= 16;
+		const __m128i x_hi = _mm_shuffle_epi8(pext_table_16_pshufb[a % 16], mask_hi);
+		const uint64_t hi_pop = mask_pop4 % 16;
+		a /= 16;
+		mask_pop4 /= 16;
+
+		mask_lo = _mm_srli_epi64(mask_lo, 8);
+		mask_hi = _mm_srli_epi64(mask_hi, 8);
+
+		answer = _mm_or_si128(answer, _mm_slli_epi64(_mm_and_si128(bytemask, _mm_or_si128(x_lo, _mm_slli_epi64(x_hi, (int)lo_pop))), (int)acc_pop));
+		acc_pop += lo_pop + hi_pop;
+	}
+
+	return (uint64_t)_mm_cvtsi128_si64(answer);
+}
+
+
+
+
+
+//inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return _pdep_u64(a, mask); }
+//inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return _pext_u64(a, mask); }
+
+inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return pdep_pshufb(a, mask); }
+inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return pext_pshufb(a, mask); }
+
+
 
 constexpr uint64_t BB_ALL_8X8_5X5 = 0b00011111'00011111'00011111'00011111'00011111ULL;
 constexpr uint64_t BB_HORI_EDGE_8X8_5X5 = 0b00010001'00010001'00010001'00010001'00010001ULL;
@@ -2109,6 +2210,7 @@ int main(int argc, char *argv[]) {
 	static_assert(std::is_same<uint64_t, size_t>::value);
 
 	init_move_tables();
+	init_pdep_pext_pshufb_tables();
 
 	if (argc == 3 && argv[1] == "go" && (argv[3] == "parallel" || argv[3] == "serial")) {
 		std::cout << "LOG: start: analyze the all positions" << std::endl;
