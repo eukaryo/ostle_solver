@@ -20,6 +20,7 @@
 #include<functional>
 #include<limits>
 #include<exception>
+#include<execution>
 
 #include <mmintrin.h>
 #include <xmmintrin.h>
@@ -52,109 +53,8 @@ inline uint32_t bitscan_forward64(const uint64_t x, uint32_t *dest) {
 
 }
 
-
-alignas(64) static __m128i pdep_table_16_pshufb[16];
-alignas(64) static __m128i pext_table_16_pshufb[16];
-
-void init_pdep_pext_pshufb_tables() {
-
-	for (uint64_t x = 0; x < 16; ++x) {
-		uint8_t tmp[16];
-		for (uint64_t y = 0; y < 16; ++y) {
-			const uint64_t p = pdep_intrinsics(x, y);
-			assert(p < 16ULL);
-			tmp[y] = (uint8_t)p;
-		}
-		pdep_table_16_pshufb[x] = _mm_loadu_si128((__m128i*)tmp);
-	}
-
-	for (uint64_t x = 0; x < 16; ++x) {
-		uint8_t tmp[16];
-		for (uint64_t y = 0; y < 16; ++y) {
-			const uint64_t p = pext_intrinsics(x, y);
-			assert(p < 16ULL);
-			tmp[y] = (uint8_t)p;
-		}
-		pext_table_16_pshufb[x] = _mm_loadu_si128((__m128i*)tmp);
-	}
-}
-
-uint64_t pdep_pshufb(uint64_t a, uint64_t mask) {
-
-	const __m128i mask_lo = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0x0F0F'0F0F'0F0F'0F0FULL));
-	const __m128i mask_hi = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0xF0F0'F0F0'F0F0'F0F0ULL) >> 4);
-
-	uint64_t mask_pop4 = mask
-		- ((mask >> 1) & 0x7777777777777777ULL)
-		- ((mask >> 2) & 0x3333333333333333ULL)
-		- ((mask >> 3) & 0x1111111111111111ULL);
-
-	__m128i bytemask = _mm_set_epi64x(0, 0xFF);
-	__m128i answer = _mm_setzero_si128();
-
-	for (int i = 0; i < 8; ++i) {
-
-		const __m128i x_lo = _mm_shuffle_epi8(pdep_table_16_pshufb[a % 16], mask_lo);
-		a >>= mask_pop4 % 16;
-		mask_pop4 /= 16;
-		const __m128i x_hi = _mm_shuffle_epi8(pdep_table_16_pshufb[a % 16], mask_hi);
-		a >>= mask_pop4 % 16;
-		mask_pop4 /= 16;
-
-		answer = _mm_or_si128(answer, _mm_and_si128(bytemask, _mm_or_si128(x_lo, _mm_slli_epi64(x_hi, 4))));
-		bytemask = _mm_slli_epi64(bytemask, 8);
-	}
-
-	return (uint64_t)_mm_cvtsi128_si64(answer);
-}
-
-uint64_t pext_pshufb(uint64_t a, uint64_t mask) {
-
-	__m128i mask_lo = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0x0F0F'0F0F'0F0F'0F0FULL));
-	__m128i mask_hi = _mm_set_epi64x(0xFFFF'FFFF'FFFF'FFFFULL, (mask & 0xF0F0'F0F0'F0F0'F0F0ULL) >> 4);
-
-	uint64_t mask_pop4 = mask
-		- ((mask >> 1) & 0x7777777777777777ULL)
-		- ((mask >> 2) & 0x3333333333333333ULL)
-		- ((mask >> 3) & 0x1111111111111111ULL);
-
-	__m128i bytemask = _mm_set_epi64x(0, 0xFF);
-	__m128i answer = _mm_setzero_si128();
-
-	uint64_t acc_pop = 0;
-
-	for (int i = 0; i < 8; ++i) {
-
-		const __m128i x_lo = _mm_shuffle_epi8(pext_table_16_pshufb[a % 16], mask_lo);
-		const uint64_t lo_pop = mask_pop4 % 16;
-		a /= 16;
-		mask_pop4 /= 16;
-		const __m128i x_hi = _mm_shuffle_epi8(pext_table_16_pshufb[a % 16], mask_hi);
-		const uint64_t hi_pop = mask_pop4 % 16;
-		a /= 16;
-		mask_pop4 /= 16;
-
-		mask_lo = _mm_srli_epi64(mask_lo, 8);
-		mask_hi = _mm_srli_epi64(mask_hi, 8);
-
-		answer = _mm_or_si128(answer, _mm_slli_epi64(_mm_and_si128(bytemask, _mm_or_si128(x_lo, _mm_slli_epi64(x_hi, (int)lo_pop))), (int)acc_pop));
-		acc_pop += lo_pop + hi_pop;
-	}
-
-	return (uint64_t)_mm_cvtsi128_si64(answer);
-}
-
-
-
-
-
-//inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return _pdep_u64(a, mask); }
-//inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return _pext_u64(a, mask); }
-
-inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return pdep_pshufb(a, mask); }
-inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return pext_pshufb(a, mask); }
-
-
+inline uint64_t pdep_intrinsics(uint64_t a, uint64_t mask) { return _pdep_u64(a, mask); }
+inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return _pext_u64(a, mask); }
 
 constexpr uint64_t BB_ALL_8X8_5X5 = 0b00011111'00011111'00011111'00011111'00011111ULL;
 constexpr uint64_t BB_HORI_EDGE_8X8_5X5 = 0b00010001'00010001'00010001'00010001'00010001ULL;
@@ -476,7 +376,7 @@ typedef std::array<uint8_t, 32> Moves; //下位5bitは着手位置、上位2bit�
 //例えば「上方向」の代わりに「縦マイナス方向」と呼ぶことにする。
 //横方向なら上位ビットが立っている。プラス方向なら下位ビットが立っている。
 
-constexpr uint64_t pos_diff[4] = { uint64_t(int64_t(-5)), uint64_t(5), uint64_t(int64_t(-1)), uint64_t(1) };
+constexpr uint64_t pos_diff[4] = { -5, 5, -1, 1 };
 
 constexpr uint8_t oneline_bb2index[33] =
 {
@@ -1317,13 +1217,14 @@ private:
 			for (int64_t i = 0; i < siz; ++i) {
 				positions[i] = code_unique(positions[i]);
 			}
+			std::sort(std::execution::par, positions.begin(), positions.end());
 		}
 		else {
 			for (uint64_t i = 0; i < positions.size(); ++i) {
 				positions[i] = code_unique(positions[i]);
 			}
+			std::sort(std::execution::seq, positions.begin(), positions.end());
 		}
-		std::sort(positions.begin(), positions.end());
 
 		const auto result = std::unique(positions.begin(), positions.end());
 		positions.erase(result, positions.end());
@@ -1371,7 +1272,12 @@ public:
 
 		std::cout << "LOG: start: sort and verify uniqueness" << std::endl;
 
-		std::sort(all_positions.begin(), all_positions.end());
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
+		}
 
 		for (uint64_t i = 1; i < all_positions.size(); ++i) {
 			assert(all_positions[i - 1] < all_positions[i]);
@@ -1457,8 +1363,14 @@ private:
 		//
 
 		//配列all_positionsをハッシュ値の昇順で並べ替える。
-		std::sort(all_positions.begin(), all_positions.end(),
-			[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end(),
+				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end(),
+				[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
+		}
 
 		//配列all_positionsがハッシュテーブルの長さになるように、配列の先頭にゼロを付加する。
 		assert(hash_length + 31ULL >= all_positions.size());
@@ -1557,7 +1469,12 @@ private:
 		dfs_binary_tree_and_add_level(0, 1, counter);
 		assert(counter == all_positions.size());
 
-		std::sort(all_positions.begin(), all_positions.end());
+		if (PARALLEL) {
+			std::sort(std::execution::par, all_positions.begin(), all_positions.end());
+		}
+		else {
+			std::sort(std::execution::seq, all_positions.begin(), all_positions.end());
+		}
 
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
 			all_positions[i] &= (1ULL << 55) - 1ULL;
@@ -2095,7 +2012,7 @@ void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
 	dfs_binary_tree(0, 1, counter, v);
 	assert(counter == v.size());
 
-	std::sort(v.begin(), v.end());
+	std::sort(std::execution::par, v.begin(), v.end());
 
 	for (uint64_t i = 0; i < v.size(); ++i) {
 		v[i] &= (1ULL << 55) - 1ULL;
@@ -2210,7 +2127,6 @@ int main(int argc, char *argv[]) {
 	static_assert(std::is_same<uint64_t, size_t>::value);
 
 	init_move_tables();
-	init_pdep_pext_pshufb_tables();
 
 	if (argc == 3 && argv[1] == "go" && (argv[3] == "parallel" || argv[3] == "serial")) {
 		std::cout << "LOG: start: analyze the all positions" << std::endl;
@@ -2233,7 +2149,7 @@ int main(int argc, char *argv[]) {
 		}
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " <<fingerprint << std::endl;
 
 		return 0;
 	}
