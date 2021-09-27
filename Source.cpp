@@ -1372,6 +1372,7 @@ public:
 
 		return ((bits[bindex / 64] >> shift_len) + (bits[(bindex / 64) + 1] << (64 - shift_len))) & ((1ULL << 25) - 1ULL);
 
+		//注意:符号なし64bit整数を64bit右シフトするとゼロになるかと期待してはいけない。未定義動作であるし、実際ならない。
 	}
 
 	void construct_auxiliary_table() {
@@ -1555,7 +1556,6 @@ private:
 				const uint64_t next_index = code2index(code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole)));
 
 				//到達した先の盤面がチェックメイトの場合は除外する。
-				//assert(is_checkmate_position.get(next_index) == is_checkmate(next_bb_opponent, next_bb_player, next_pos_hole));//debug
 				if (is_checkmate_position.get(next_index))continue;
 
 				//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、ノードを確定させる。
@@ -1720,7 +1720,6 @@ private:
 				//「そのノードに禁じ手が無いか、そのノードの禁じ手が最短勝利手ではないか、最短勝利手が複数ある」ならば、そのノードは最短勝利手の手数で勝利できる。
 				if (x != min_index || tie_flag) {
 					assert(min_index != -1);
-					assert(dest[i] == 0 || dest[i] >= outcome[min_index]);
 					if (dest[i] != outcome[min_index]) {
 						++answer;
 						dest[i] = outcome[min_index];
@@ -1742,16 +1741,6 @@ private:
 						}
 					}
 					assert(second_min_index != -1);
-
-					if (!(dest[i] == 0 || dest[i] >= outcome[second_min_index])) {
-						std::cout << i << std::endl;
-						std::cout << dest[i] << std::endl;
-						std::cout << second_min_index << std::endl;
-						std::cout << outcome[second_min_index] << std::endl;
-						assert(dest[i] == 0 || dest[i] >= outcome[second_min_index]);//debug
-					}
-
-					assert(dest[i] == 0 || dest[i] >= outcome[second_min_index]);
 					if (dest[i] != outcome[second_min_index]) {
 						++answer;
 						dest[i] = outcome[second_min_index];
@@ -1780,7 +1769,6 @@ private:
 				//「そのノードに禁じ手が無いか、そのノードの禁じ手がXではない」ならば、そのノードはXの手数で勝利できる。
 				if (x != win_index) {
 					assert(win_index != -1);
-					assert(dest[i] == 0 || dest[i] >= outcome[win_index]);
 					if (dest[i] != outcome[win_index]) {
 						++answer;
 						dest[i] = outcome[win_index];
@@ -1807,7 +1795,6 @@ private:
 							}
 						}
 						assert(max_index != -1);//X以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
-						//assert(dest[i] <= outcome[max_index]);
 						if (dest[i] != outcome[max_index]) {
 							++answer;
 							dest[i] = outcome[max_index];
@@ -1853,7 +1840,6 @@ private:
 				//「そのノードに禁じ手が無いか、そのノードの禁じ手が最長敗北手ではないか、最長敗北手が複数ある」ならば、そのノードは最長敗北手の手数で敗北する。
 				if (x != max_index || tie_flag) {
 					assert(max_index != -1);
-					//assert(dest[i] <= outcome[max_index]);
 					if (dest[i] != outcome[max_index]) {
 						++answer;
 						dest[i] = outcome[max_index];
@@ -1875,7 +1861,6 @@ private:
 						}
 					}
 					assert(second_max_index != -1);//唯一の最長敗北手以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
-					//assert(dest[i] <= outcome[second_max_index]);
 					if (dest[i] != outcome[second_max_index]) {
 						++answer;
 						dest[i] = outcome[second_max_index];
@@ -1924,7 +1909,6 @@ private:
 						}
 					}
 					assert(max_index != -1);//X以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
-					//assert(dest[i] <= outcome[max_index]);
 					if (dest[i] != outcome[max_index]) {
 						++answer;
 						dest[i] = outcome[max_index];
@@ -1950,7 +1934,8 @@ private:
 
 	std::pair<uint64_t, uint64_t> retrograde_analysis_single_iteration() {
 
-		uint64_t TASK_SIZE = 1'000'000ULL;
+		const uint64_t TASK_SIZE = 1'000'000ULL;
+		const int64_t CHANK_SIZE = 100;
 
 		std::vector<uint64_t>next_solutions;
 		next_solutions.reserve(TASK_SIZE);
@@ -1969,19 +1954,40 @@ private:
 #pragma omp parallel for schedule(guided)
 			for (int64_t i = start; i < end; ++i) {
 				std::vector<uint16_t>dest;
-				const uint64_t result = check_one_position(i, dest);
-				const uint64_t start_rank = is_nontrivial_node.rank1(uint64_t(i * 25));
-				if (result) {
+
+				for (int64_t j = i; j < end && j < i + CHANK_SIZE; j += CHANK_SIZE) {
+					const uint64_t result = check_one_position(j, dest);
+					const uint64_t start_rank = is_nontrivial_node.rank1(uint64_t(j * 25));
+					if (result) {
 
 #pragma omp critical
-					{
-						sum_result += result;
-					}
+						{
+							sum_result += result;
+						}
 
+					}
+					for (uint64_t k = 0; k < dest.size(); ++k) {
+						next_solutions[start_rank - offset + k] = dest[k];
+					}
 				}
-				for (uint64_t j = 0; j < dest.size(); ++j) {
-					next_solutions[start_rank - offset + j] = dest[j];
-				}
+
+
+
+
+
+//				const uint64_t result = check_one_position(i, dest);
+//				const uint64_t start_rank = is_nontrivial_node.rank1(uint64_t(i * 25));
+//				if (result) {
+//
+//#pragma omp critical
+//					{
+//						sum_result += result;
+//					}
+//
+//				}
+//				for (uint64_t j = 0; j < dest.size(); ++j) {
+//					next_solutions[start_rank - offset + j] = dest[j];
+//				}
 
 			}
 
@@ -2106,8 +2112,8 @@ public:
 			std::cout << "LOG: [" << get_datetime_str() << "] start: iteration " << iteration << std::endl;
 			const auto t = std::chrono::system_clock::now();
 
-			//const auto updated_num = retrograde_analysis_single_iteration_batch();
-			const auto updated_num = retrograde_analysis_single_iteration();
+			const auto updated_num = retrograde_analysis_single_iteration_batch();
+			//const auto updated_num = retrograde_analysis_single_iteration();
 
 			const auto s = std::chrono::system_clock::now();
 			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
@@ -2131,6 +2137,10 @@ public:
 			answer = _mm_xor_si128(x, answer);//xorは可換
 		}
 
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			const __m128i x = encoder.aes128_enc(is_nontrivial_node.get_bb_position(i), i);
+			answer = _mm_xor_si128(x, answer);//xorは可換
+		}
 
 		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
 			const __m128i x = encoder.aes128_enc(all_nontrivial_solutions[i], i);
@@ -2144,32 +2154,47 @@ public:
 
 	void output_positions_and_win_lose_solutions(const std::string filename) {
 
-		//assert(all_positions.size() == all_solutions.size());
+		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_win_lose_solutions" << std::endl;
 
-		//constexpr int BUFSIZE = 2 * 1024 * 1024;
-		//static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic
+		constexpr int BUFSIZE = 2 * 1024 * 1024;
+		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
 
-		//std::ofstream writing_file;
-		//writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
-		//uint64_t count = 0;
-		//std::string code1, code2;
-		//constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
+		std::ofstream writing_file;
+		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
+		uint64_t count = 0;
+		std::string text;
+		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
 
-		//for (uint64_t i = 0; i < all_positions.size(); ++i) {
-		//	if (count % SINGLE_FILE_LIMIT == 0) {
-		//		if (count) {
-		//			writing_file.close();
-		//		}
-		//		writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
-		//	}
-		//	encode_base64(all_positions[i], code1);
-		//	encode_base64(all_solutions[i], code2);
-		//	writing_file << code1 << "," << code2 << std::endl;
-		//	++count;
-		//}
-		//if (all_positions.size()) {
-		//	writing_file.close();
-		//}
+		uint64_t node_index = 0;
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (count % SINGLE_FILE_LIMIT == 0) {
+				if (count) {
+					writing_file.close();
+				}
+				writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
+			}
+
+			encode_base64(all_positions[i], text);
+			const uint64_t bb = is_nontrivial_node.get_bb_position(i);
+			for (uint64_t j = 0; j < 25; ++j) {
+				text += ",";
+				if (bb & (1ULL << j)) {
+					text += std::to_string(all_nontrivial_solutions[node_index++]);
+				}
+				else {
+					text += "_";
+				}
+			}
+
+			writing_file << text <<  std::endl;
+			++count;
+		}
+		if (all_positions.size()) {
+			writing_file.close();
+		}
+
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: output_positions_and_win_lose_solutions" << std::endl;
+
 	}
 
 	int query(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const uint64_t forbidden_bb_player, const uint64_t forbidden_bb_opponent, const uint64_t forbidden_pos_hole) {
@@ -2207,12 +2232,12 @@ public:
 
 		Moves moves;
 
-		generate_moves(bb_opponent, bb_player, pos_hole, moves);
+		generate_moves(bb_player, bb_opponent, pos_hole, moves);
 		uint64_t forbidden_index = 0;
 		for (uint8_t i = 1; i <= moves[0]; ++i) {
-			uint64_t bb1 = bb_opponent, bb2 = bb_player, pos = pos_hole;
+			uint64_t bb1 = bb_player, bb2 = bb_opponent, pos = pos_hole;
 			do_move(bb1, bb2, pos, moves[i]);
-			if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
+			if (bb1 == forbidden_bb_player && bb2 == forbidden_bb_opponent && pos == forbidden_pos_hole) {
 				forbidden_index = i;
 				break;
 			}
@@ -2222,13 +2247,36 @@ public:
 
 		const uint64_t rank = is_nontrivial_node.rank1(index * 25 + forbidden_index);
 
-		if (all_nontrivial_solutions.size() <= rank)return -5;//なぜかall_nontrivial_solutions配列のなかに入力局面がそんざいしなかった
+		if (all_nontrivial_solutions.size() <= rank)return -5;//なぜかall_nontrivial_solutions配列のなかに入力局面が存在しなかった
 
 		return all_nontrivial_solutions[rank];//返り値が0ならば引き分け、正の数ならばチェックメイトまでの手数（奇数なら手番側の勝ち、偶数なら手番側の負け）
 	}
 
 
+	void answer_about_initial_position() {
+		std::cout << "LOG: [" << get_datetime_str() << "] start: answer_about_initial_position" << std::endl;
 
+		const uint64_t bb_player = 0b11111'00000'00000'00000'00000ULL;
+		const uint64_t bb_opponent = 0b11111ULL;
+
+		visualize_ostle(bb_player, bb_opponent, 12);
+		const int answer = query(bb_player, bb_opponent, 12, 0, 0, 0);
+
+		if (answer == 0) {
+			std::cout << "result: the initial position is draw." << std::endl;
+		}
+		else if (answer < 0) {
+			std::cout << "result: query error:" << answer << std::endl;
+		}
+		else if (answer % 2 == 0) {
+			std::cout << "result: player wins in the initial position with " << answer << " moves." << std::endl;
+		}
+		else {
+			std::cout << "result: opponent wins in the initial position with " << answer << " moves." << std::endl;
+		}
+
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: answer_about_initial_position" << std::endl;
+	}
 
 
 
@@ -2252,6 +2300,9 @@ public:
 
 };
 
+
+
+
 uint64_t solve_8() {
 	std::cout << "LOG: [" << get_datetime_str() << "] start: solve_8" << std::endl;
 	OstleEnumerator e(8);
@@ -2259,6 +2310,7 @@ uint64_t solve_8() {
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
 	e.print_statistics_of_results();
+	e.output_positions_and_win_lose_solutions("ostle_output");
 	std::cout << "LOG: [" << get_datetime_str() << "] finish: solve_8. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
@@ -2299,7 +2351,6 @@ int main(int argc, char *argv[]) {
 	SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);
 #endif
 
-
 	init_move_tables();
 
 	if (argc == 2 && std::string(argv[1]) == std::string("go")) {
@@ -2309,7 +2360,9 @@ int main(int argc, char *argv[]) {
 		OstleEnumerator e(10);
 		e.do_enumerate();
 		e.retrograde_analysis();
+		e.print_statistics_of_results();
 		e.output_positions_and_win_lose_solutions("ostle_output");
+
 		const uint64_t fingerprint = e.calc_final_result_hashvalue();
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
