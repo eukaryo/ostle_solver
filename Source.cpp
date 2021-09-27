@@ -1,25 +1,36 @@
+
+#define _CRT_SECURE_NO_WARNINGS
+
 #include<iostream>
+#include<iomanip>
+#include<chrono>
 #include<fstream>
+
 #include<vector>
 #include<string>
 #include<map>
 #include<set>
 #include<unordered_map>
 #include<unordered_set>
-#include<queue>
+
 #include<algorithm>
-#include<cassert>
-#include<cstdint>
-#include<regex>
-#include<random>
-#include<cstdint>
-#include<iomanip>
-#include<chrono>
 #include<array>
 #include<bitset>
+#include<cassert>
+#include<cstdint>
+#include<exception>
 #include<functional>
 #include<limits>
-#include<exception>
+#include<queue>
+#include<regex>
+#include<random>
+
+#include <omp.h>
+
+#ifdef _MSC_VER
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 #include <mmintrin.h>
 #include <xmmintrin.h>
@@ -1024,7 +1035,6 @@ bool test_base64_func(const uint64_t seed, const int length) {
 	return true;
 }
 
-
 std::string my_itos(const uint64_t i, const int width, const char fill) {
 	//整数iをstringに変換する。桁数がwidth未満なら、文字fillを先頭にくっつけて桁数をwidthに揃える。
 
@@ -1037,8 +1047,23 @@ std::string my_itos(const uint64_t i, const int width, const char fill) {
 }
 
 
+std::string get_datetime_str() {
+	time_t t = time(nullptr);
+	const tm* localTime = localtime(&t);
+
+	std::string s;
+	s += my_itos(uint64_t(1900 + localTime->tm_year), 4, '0') + "/";
+	s += my_itos(uint64_t(localTime->tm_mon + 1), 2, '0') + "/";
+	s += my_itos(uint64_t(localTime->tm_mday), 2, '0') + " ";
+	s += my_itos(uint64_t(localTime->tm_hour), 2, '0') + ":";
+	s += my_itos(uint64_t(localTime->tm_min), 2, '0') + ":";
+	s += my_itos(uint64_t(localTime->tm_sec), 2, '0');
+
+	return s;
+}
+
 class Encoder_AES {
-	//自作ハッシュテーブルのハッシュ関数としてAES暗号を流用する。
+	//ハッシュ関数としてAES暗号を流用する。
 
 	//cf: https://gist.github.com/acapola/d5b940da024080dfaf5f
 
@@ -1159,7 +1184,6 @@ public:
 	}
 };
 
-
 class PositionEnumerator {
 
 private:
@@ -1201,7 +1225,7 @@ private:
 		}
 	}
 
-	uint64_t dfs_position_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent, std::vector<uint64_t> &all_positions, const bool PARALLEL = false) {
+	uint64_t dfs_position_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent, std::vector<uint64_t> &all_positions) {
 		//穴の位置とコマの数を引数に取り、その条件に沿った盤面を全列挙して、対称な局面を同一視して重複削除してからall_positionsの末尾に加える。返り値は、最終的に加えた盤面の数とする。
 
 		positions.clear();
@@ -1211,16 +1235,9 @@ private:
 
 		const int64_t siz = positions.size();
 
-		if (PARALLEL) {
 #pragma omp parallel for
-			for (int64_t i = 0; i < siz; ++i) {
-				positions[i] = code_unique(positions[i]);
-			}
-		}
-		else {
-			for (uint64_t i = 0; i < positions.size(); ++i) {
-				positions[i] = code_unique(positions[i]);
-			}
+		for (int64_t i = 0; i < siz; ++i) {
+			positions[i] = code_unique(positions[i]);
 		}
 		std::sort(positions.begin(), positions.end());
 
@@ -1240,35 +1257,35 @@ public:
 		positions.reserve(500'000'000ULL);
 	}
 
-	void do_enumerate(const int start_piece, std::vector<uint64_t> &all_positions, const bool PARALLEL = false) {
+	void do_enumerate(const int start_piece, std::vector<uint64_t> &all_positions) {
 
 		num_start_piece = start_piece;
 
 		const uint64_t holes[6] = { 0,1,2,6,7,12 };
 		uint64_t num_unique_positions = 0;
 
-		std::cout << "LOG: start: dfs_position_root" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] start: dfs_position_root" << std::endl;
 
 		switch (num_start_piece) {
 		case 10:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 5, all_positions, PARALLEL);
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 5, all_positions);
 		case 9:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 4, all_positions, PARALLEL);
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 5, all_positions, PARALLEL);
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 4, all_positions);
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 5, all_positions);
 		case 8:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 4, all_positions, PARALLEL);
+			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 4, all_positions);
 			break;
 		default:
 			assert(false);
 		}
 
-		std::cout << "LOG: finish: dfs_position_root" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: dfs_position_root" << std::endl;
 
 		std::cout << "result: total number of the unique positions = " << num_unique_positions << std::endl;
 
 		assert(num_unique_positions == all_positions.size());
 
-		std::cout << "LOG: start: sort and verify uniqueness" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] start: sort and verify uniqueness" << std::endl;
 
 		std::sort(all_positions.begin(), all_positions.end());
 
@@ -1276,234 +1293,197 @@ public:
 			assert(all_positions[i - 1] < all_positions[i]);
 		}
 
-		std::cout << "LOG: finish: sort and verify uniqueness" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: sort and verify uniqueness" << std::endl;
 
 		return;
 	}
 };
 
-template<bool USE_HASH_TABLE, bool USE_LEVELWISE, bool PARALLEL>class OstleEnumerator {
+class BitVector {
+
+protected:
+
+	std::vector<uint64_t>bits;
+
+	uint64_t population;
+
+public:
+
+	BitVector(const uint64_t size) {
+
+		//1要素増やす理由は、派生クラスのget_bb_position関数で便利だから。
+		bits.resize(((size + 63ULL) / 64ULL) + 1);
+
+		population = 0;
+	}
+
+	BitVector() :BitVector(1) {}
+
+	void set1(const uint64_t pos) {
+		assert(pos < bits.size() * 64);
+		if ((bits[pos / 64] & (1ULL << (pos % 64))) == 0)++population;
+		bits[pos / 64] |= 1ULL << (pos % 64);
+	}
+
+	//void set0(const uint64_t pos) {
+	//	assert(pos < bits.size() * 64);
+	//	if ((bits[pos / 64] & (1ULL << (pos % 63))) != 0)--population;
+	//	bits[pos / 64] &= ~(1ULL << (pos % 63));
+	//}
+
+	bool get(const uint64_t pos) {
+		assert(pos < bits.size() * 64);
+		return (bits[pos / 64] & (1ULL << (pos % 64))) != 0;
+	}
+
+	uint64_t popcount() {
+		//立っているビットの総数を返す。
+
+		return population;
+	}
+
+};
+
+class BitVector_nodes : public BitVector {
+
+private:
+
+	std::vector<uint64_t>large_block;
+	std::vector<uint16_t>small_block;
+
+public:
+
+	BitVector_nodes(const uint64_t size) : BitVector(size) {
+		large_block.clear();
+		small_block.clear();
+	}
+
+	BitVector_nodes() :BitVector(1) {}
+
+	uint64_t get_bb_position(const uint64_t index) {
+		//ビットベクトルが25bitごとに区切られたものだとして、index番目の区切りに相当する25bitを返す。
+
+		const uint64_t bindex = index * 25;
+		const uint64_t shift_len = (bindex % 64);
+
+		if (shift_len + 25 < 64) {
+			return (bits[bindex / 64] >> shift_len) & ((1ULL << 25) - 1ULL);
+		}
+
+		return ((bits[bindex / 64] >> shift_len) + (bits[(bindex / 64) + 1] << (64 - shift_len))) & ((1ULL << 25) - 1ULL);
+
+	}
+
+	void construct_auxiliary_table() {
+		//rankクエリのための補助データ構造を構築する。
+
+		//large_blockは、65536bitごとにrank情報を持っておく。加えて、末尾には全体で立っているビットの総数を持っておく。
+		large_block.clear();
+		large_block.resize(((bits.size() * 64ULL + 65535ULL) / 65536ULL) + 1ULL);
+		uint64_t large_pop = 0;
+		for (uint64_t i = 0; i < bits.size(); i += 1024) {
+			large_block[(i / 1024)] = large_pop;
+			for (uint64_t j = 0; j < 1024 && i + j < bits.size(); ++j) {
+				large_pop += _mm_popcnt_u64(bits[i + j]);
+			}
+		}
+
+		//small_blockは、64bitごとに局所的な(=65536bit幅のブロックの内側での)rank情報を持っておく。
+		//値は[0,65472]の範囲内(65472 == 65536 - 64)なので16bitで収まる。
+		small_block.clear();
+		small_block.resize(bits.size());
+
+		for (uint64_t i = 0; i < bits.size(); i += 1024) {
+			uint64_t pop = 0;
+			for (uint64_t j = 0; j < 1024 && i + j < bits.size(); ++j) {
+				assert(pop < (1ULL << 16));
+				small_block[i + j] = uint16_t(pop);
+				pop += _mm_popcnt_u64(bits[i + j]);
+			}
+		}
+	}
+
+	uint64_t rank1(const uint64_t index) {
+		//bitsの範囲[0,index)のなかで立っているビットの数を返す。
+
+		assert(index < bits.size() * 64);
+
+		return large_block[index / 65536] + small_block[index / 64] + _mm_popcnt_u64(bits[index / 64] & ((1ULL << (index % 64)) - 1));
+	}
+
+	uint64_t rank1_naive(const uint64_t index) {
+		//bitsの範囲[0,index)のなかで立っているビットの数を返す。
+
+		assert(index < bits.size() * 64);
+
+		uint64_t answer = 0;
+		for (uint64_t i = 63; i < index; i += 64) {
+			answer += _mm_popcnt_u64(bits[i / 64]);
+		}
+		answer += _mm_popcnt_u64(bits[index / 64] & ((1ULL << (index % 64)) - 1));
+		return answer;
+	}
+};
+
+bool test_bit_vector(const uint64_t seed, const int length) {
+	std::mt19937_64 rnd(seed);
+	std::uniform_int_distribution<uint64_t>pos_dist(100000, 200000);
+
+	for (int i = 0; i < length; ++i) {
+		if (i % (length / 10) == 0) {
+			std::cout << "test_bitvector_func: " << i << " / " << length << std::endl;
+		}
+
+		const uint64_t len_vec = pos_dist(rnd);
+		BitVector_nodes b(len_vec);
+
+		for (uint64_t i = 0; i < len_vec; ++i) {
+			if (rnd() % 2) {
+				b.set1(i);
+			}
+		}
+
+		b.construct_auxiliary_table();
+
+		const uint64_t position = std::uniform_int_distribution<uint64_t>(0, len_vec - 1)(rnd);
+		const uint64_t r1 = b.rank1(position);
+		const uint64_t r2 = b.rank1_naive(position);
+		if (r1 != r2) {
+			std::cout << "test failed." << std::endl;
+			return false;
+		}
+
+		const uint64_t s1 = b.popcount();
+		const uint64_t s2 = b.rank1(len_vec);
+		if (s1 != s2) {
+			std::cout << "test failed." << std::endl;
+			return false;
+		}
+	}
+	std::cout << "test clear!" << std::endl;
+	return true;
+}
+
+class OstleEnumerator {
 
 private:
 
 	std::vector<uint64_t>all_positions;
 
-	std::vector<uint64_t>all_solutions;
+	BitVector_nodes is_nontrivial_node;
 
-	std::vector<uint8_t>signature_table;
+	BitVector is_checkmate_position;
 
-	Encoder_AES hash_func;
+	std::vector<int16_t>all_nontrivial_solutions;
 
 	int num_start_piece;
-
-	enum {
-		UNLABELED = 0,
-		WIN = 1,
-		LOSE = 2,
-		SUICIDE = 100
-	};
 
 	constexpr static uint64_t SOLUTION_ALL_WIN = 0x5555'5555'5555'5555ULL;
 	constexpr static uint64_t SOLUTION_ALL_LOSE = 0xAAAA'AAAA'AAAA'AAAAULL;
 
-	bool constract_hashtable_if_hashable(const uint64_t hash_length, const uint64_t hash_seed) {
-		//ハッシュテーブルの長さとハッシュ関数のseed値を引数に取り、all_positionsがそのハッシュテーブルに収まるかどうか調べる。
-		//収まらないならばfalseを返す。収まるならば、ハッシュテーブルを実際に構築してからtrueを返す。
-		//返り値がfalseならば、all_positionsは変更されない。trueならば、all_positionsは変更されうる。（並べ替えられて、ゼロの要素が挿入されることがある）
-
-		assert(USE_HASH_TABLE == true);
-
-		//hash_lengthは2^32未満でなければならないが、2べき数でなくてもよい。
-		assert(hash_length < (1ULL << 32));
-
-		if (hash_length < all_positions.size())return false;
-
-		//key observation:
-		//エントリeを[0,2^32)のハッシュ値h(e)に一様ランダムに写像できたならば、
-		//((hash_length * h(e)) >> 32) はeを[0,hash_length)に一様ランダムに写像するものである。（整数除算命令を用いずに！）
-		// cf: https://github.com/official-stockfish/Stockfish/commit/2198cd0524574f0d9df8c0ec9aaf14ad8c94402b
-
-		hash_func = Encoder_AES(hash_seed);
-
-		//度数表を作る。この時点で、32を超える配列要素があれば、必ず構築失敗する。
-		std::vector<uint8_t>count(hash_length, 0);
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			assert(all_positions[i] < (1ULL << 55));//ここのall_positionsはunique_ostleの出力であるはず
-			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
-			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
-			assert(hashtable_index < hash_length);
-			if (++count[hashtable_index] > 32) {
-				return false;
-			}
-		}
-
-		//各添字番号について、（Robin Hood Hashingでinsertしたときに）その要素が実際に格納され始める位置を求める。
-		//32以上離れることがあれば、それは構築失敗を意味する。
-		int prev_start_pos = 0;
-		for (uint64_t i = 1; i < hash_length; ++i) {
-			const int current_start_pos = uint8_t(std::max(prev_start_pos + int(count[i - 1]) - 1, 0)); // main DP
-			if (current_start_pos >= 32) {
-				return false;
-			}
-			prev_start_pos = current_start_pos;
-		}
-
-		//最後の添字番号について、その要素が格納され終わる位置を求める。32以上離れることがあれば、それは構築失敗を意味する。
-		if (prev_start_pos + uint64_t(count[hash_length - 1]) >= 32)return false;
-
-		//
-		//処理がここに到達したということは構築可能である。よってここからは実際の構築処理を行う。
-		//
-
-		//配列all_positionsをハッシュ値の昇順で並べ替える。
-		std::sort(all_positions.begin(), all_positions.end(),
-			[&](const uint64_t a, const uint64_t b) {return hash_func.aes128_enc(a) < hash_func.aes128_enc(b); });
-
-		//配列all_positionsがハッシュテーブルの長さになるように、配列の先頭にゼロを付加する。
-		assert(hash_length + 31ULL >= all_positions.size());
-		const uint64_t diff_length = hash_length + 31ULL - all_positions.size();
-		all_positions.resize(hash_length + 31ULL);
-		for (uint64_t i = all_positions.size() - 1; i >= diff_length; --i) {
-			all_positions[i] = all_positions[i - diff_length];
-		}
-		for (uint64_t i = 0; i < diff_length; ++i) {
-			all_positions[i] = 0;
-		}
-
-		//signature_tableをハッシュテーブルの長さに初期化する。最上位ビットを立てておく（空白を意味する）。
-		signature_table.clear();
-		signature_table.resize(hash_length + 31ULL, 0x80U);
-
-		//iはall_positionsの中身が入っている部分全体をなめて、各要素をできるだけ前方にずらす。
-		//ただし、[table_index]より手前にならないように注意する。
-		uint64_t cursor = 0;
-		for (uint64_t i = diff_length; i < all_positions.size(); ++i, ++cursor) {
-			const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
-			const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
-			for (; cursor < hashtable_index; ++cursor) {
-				all_positions[cursor] = 0;
-			}
-			assert(hashtable_index <= cursor && cursor <= hashtable_index + 31ULL);
-			all_positions[cursor] = all_positions[i];
-			signature_table[cursor] = hash_key % 0x80ULL;
-			assert(cursor <= i);
-		}
-		for (; cursor < all_positions.size(); ++cursor)all_positions[cursor] = 0;
-
-		assert(all_positions.size() == signature_table.size());
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			if (signature_table[i] == 0x80U)assert(all_positions[i] == 0);
-			else {
-				const uint64_t hash_key = hash_func.aes128_enc(all_positions[i]);
-				assert(signature_table[i] == hash_key % 0x80ULL);
-				const uint64_t c = find(all_positions[i]);
-				assert(c == i);
-			}
-		}
-
-		return true;
-	}
-
-	void prepare_for_hashtable() {
-		//all_positionsを並べ替えつつ適切な位置に空白要素を挿入して、ハッシュテーブルとして機能するようにする。
-		//挿入する空白要素の数をできるだけ少なくする（＝load factorをできるだけ大きくする）ため、トライアルアンドエラーを行う。
-
-		assert(USE_HASH_TABLE == true);
-
-		const uint64_t num_unique_positions = all_positions.size();
-
-		uint64_t hash_length = num_unique_positions + (num_unique_positions >> 3);
-		uint64_t hash_seed = 12345;
-
-		for (;; hash_length += hash_length >> 3) {
-
-			if (hash_length >= (1ULL << 32)) {
-				std::cout << "LOG: failed to construct hashtable." << std::endl;
-				std::exit(0);
-			}
-
-			std::cout << "LOG: start: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << std::endl;
-			const bool b = constract_hashtable_if_hashable(hash_length, hash_seed);
-			if (b)break;
-		}
-
-		const double loading_factor = 100.0 * double(num_unique_positions) / double(hash_length);
-		std::cout << "LOG: finish: constract_hashtable_if_hashable: hash_length = " << hash_length << ", hash_seed =" << hash_seed << ", loading factor = " << loading_factor << " %" << std::endl;
-	}
-
-	void dfs_binary_tree_and_add_level(const uint64_t index, const uint64_t level, uint64_t &counter) {
-
-		if (index * 2 + 1 < all_positions.size()) {
-			dfs_binary_tree_and_add_level(index * 2 + 1, level + 1, counter);
-		}
-
-		all_positions[counter++] |= level << 55;
-
-		if (index * 2 + 2 < all_positions.size()) {
-			dfs_binary_tree_and_add_level(index * 2 + 2, level + 1, counter);
-		}
-	}
-
-	void shuffle_sorted_to_levelwise() {
-		//all_positionsが昇順にソートされていると仮定して、かつ55bitで収まっていると仮定して、levelwiseに並べ替える。
-
-		for (uint64_t i = 1; i < all_positions.size(); ++i) {
-			assert(all_positions[i - 1] < all_positions[i]);
-		}
-		assert(all_positions.back() < (1ULL << 55));
-
-		uint64_t counter = 0;
-		dfs_binary_tree_and_add_level(0, 1, counter);
-		assert(counter == all_positions.size());
-
-		std::sort(all_positions.begin(), all_positions.end());
-
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			all_positions[i] &= (1ULL << 55) - 1ULL;
-		}
-	}
-
-	uint64_t find(const uint64_t code) {
-		//all_positions[i]=codeなるiを探して返す。必ず見つかると仮定する。
-
-		assert(USE_HASH_TABLE == true);
-
-		const uint64_t hash_length = all_positions.size() - 31ULL;
-		const uint64_t hash_key = hash_func.aes128_enc(code);
-		const uint64_t hashtable_index = ((hash_key >> 32) * hash_length) >> 32;
-		const uint8_t signature = uint8_t(hash_key % 0x80ULL);
-
-		//ナイーブな処理手順では、all_positions[hashtable_index]から順番になめていって、所望の局面に当たったらOKとする。
-		//でも今回はシグネチャ配列があるので効率的に計算できる。空白エントリはシグネチャが0x80であることを考慮しつつ、以下のようなAVX2のコードが書ける。
-
-		__m256i query_signature = _mm256_set1_epi8(signature);
-		__m256i table_signature = _mm256_loadu_si256((__m256i*)&signature_table.data()[hashtable_index]);
-
-		//[index + i]の情報が ↑のsignature_table.i8[i]に格納されているとして、↓のi桁目のbitに移されるとする。
-
-		const uint64_t is_empty = uint32_t(_mm256_movemask_epi8(table_signature));
-		const uint64_t is_positive = uint32_t(_mm256_movemask_epi8(_mm256_cmpeq_epi8(query_signature, table_signature)));
-
-		uint64_t to_look = (is_empty ^ (is_empty - 1)) & is_positive;
-
-		//[index+i]がシグネチャ陽性かどうかがis_positiveの下からi番目のビットにあるとする。
-		//最初に当たる空白エントリより手前にあるシグネチャ陽性な局面の位置のビットボードが計算できる。to_lookがそれである。
-
-		for (uint32_t i = 0; bitscan_forward64(to_look, &i); to_look &= to_look - 1) {
-			const uint64_t pos = hashtable_index + i;
-			if (all_positions[pos] == code)return pos;
-		}
-
-		assert(false);
-		return 0;
-	}
-
 	uint64_t code2index(const uint64_t code) {
 		//all_positionsのどれかの値codeを引数にとり、all_positions[i]=codeなるiを探して返す。
 		//all_positionsが昇順にソートされていると仮定して二分探索で求める。
-
-		assert(USE_HASH_TABLE == false);
-		assert(USE_LEVELWISE == false);
 
 		uint64_t lower = 0, upper = all_positions.size();
 
@@ -1518,76 +1498,133 @@ private:
 		return lower;
 	}
 
-	uint64_t code2index_levelwise(const uint64_t code) {
-		//all_positionsのどれかの値cを引数にとり、all_positions[i]=cなるiを探して返す。
-		//all_positionsが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
+	uint64_t count_nontrivial_node_and_make_bitvector() {
+		//all_positionsには全盤面が格納されていると仮定する。
+		//全盤面と全禁じ手の有無との組み合わせによって想定される全局面のうち、
+		//自明でない（＝他の盤面から合法手によって到達可能であり、対局が続いており、かつチェックメイト盤面ではない）局面の数を求めて返す。
 
-		assert(USE_HASH_TABLE == false);
-		assert(USE_LEVELWISE == true);
+		std::cout << "LOG: [" << get_datetime_str() << "] start: count_nontrivial_node_and_make_bitvector" << std::endl;
 
-		uint64_t i = 0;
-		while (all_positions[i] != code) {
-			if (all_positions[i] < code) {
-				i = i * 2 + 2;
-			}
-			else {
-				i = i * 2 + 1;
-			}
-			assert(i < all_positions.size());
-		}
-		return i;
-	}
+		//結果を得るための配列を確保
+		is_nontrivial_node = BitVector_nodes(all_positions.size() * 25);
+		is_checkmate_position = BitVector(all_positions.size());
 
-
-	void check_all_positions_if_checkmate() {
-		//all_positionsの全ての盤面について、手番側が即座に勝利できる局面かどうか調べて、そうならばall_solutionsを更新する。
-
-		if (USE_HASH_TABLE) {
-			//ハッシュテーブルありの場合、ハッシュテーブルが既に構築済みであることを仮定する。（＝constract_hashtable_if_hashableを呼んでtrueが返ってきている）
-			assert(all_positions.size() == signature_table.size());
-		}
-
-		assert(all_positions.size() == all_solutions.size());
-
-		std::cout << "LOG: start: check_all_positions_if_checkmate" << std::endl;
-
-		uint64_t count_checkmate_position = 0, count_position = 0;
+		//チェックメイト盤面かどうか調べる。そうならフラグを立てておく。
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			if (USE_HASH_TABLE) {
-				if (signature_table[i] & 0x80U)continue;
-			}
-			++count_position;
 			uint64_t bb1 = 0, bb2 = 0, pos = 0;
 			decode_ostle(all_positions[i], bb1, bb2, pos);
 			if (is_checkmate(bb1, bb2, pos)) {
-				all_solutions[i] = SOLUTION_ALL_WIN;
-				++count_checkmate_position;
+				is_checkmate_position.set1(i);
 			}
 		}
 
-		const double percentage = 100.0 * double(count_checkmate_position) / double(count_position);
+		{
+			const uint64_t length_itos = my_itos(all_positions.size(), 0, ' ').size();
+			const double percentage = 100.0 * double(is_checkmate_position.popcount()) / double(all_positions.size());
+			std::cout << "result: number of checkmate positions     = " << my_itos(is_checkmate_position.popcount(), length_itos, ' ') << " / " << all_positions.size()
+				<< " (" << percentage << " %)" << std::endl;
+			std::cout << "result: number of non-checkmate positions = " << my_itos(all_positions.size() - is_checkmate_position.popcount(), length_itos, ' ') << std::endl;
+		}
 
-		std::cout << "result: number of checkmate positions = " << count_checkmate_position << " / " << count_position
-			<< " (" << percentage << " %)" << std::endl;
+		const int64_t siz = all_positions.size();
+
+#pragma omp parallel for schedule(guided)
+		for (int64_t i = 0; i < siz; ++i) {
+
+			//チェックメイト盤面からチェックメイトを見逃すことで辿り着けるノードも完全解析の対象とするので、次のif文は使わない。
+			//if (is_checkmate_position.get(i))continue;
+
+			uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+			decode_ostle(all_positions[i], bb_player, bb_opponent, pos_hole);
+
+			Moves moves, next_moves;
+
+			generate_moves(bb_player, bb_opponent, pos_hole, moves);
+			assert(moves[0] <= 24);
+
+			//盤面all_positions[i]から指し手moves[j]によって到達するノードは、到達可能なノードである。
+			for (uint8_t j = 1; j <= moves[0]; ++j) {
+
+				uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
+				do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[j]);
+
+				//自殺手とチェックメイトを実行する手を指した後の盤面は考えない。
+				if (_mm_popcnt_u64(next_bb_player) == 3)continue;
+				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
+
+				const uint64_t next_index = code2index(code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole)));
+
+				//到達した先の盤面がチェックメイトの場合は除外する。
+				//assert(is_checkmate_position.get(next_index) == is_checkmate(next_bb_opponent, next_bb_player, next_pos_hole));//debug
+				if (is_checkmate_position.get(next_index))continue;
+
+				//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、ノードを確定させる。
+				generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
+				uint64_t forbidden_index = 0;
+				for (uint8_t k = 1; k <= next_moves[0]; ++k) {
+					uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
+					do_move(bb1, bb2, pos, next_moves[k]);
+					if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
+						forbidden_index = k;
+						break;
+					}
+				}
+
+#pragma omp critical
+				{
+					is_nontrivial_node.set1(next_index * 25ULL + forbidden_index);
+				}
+			}
+		}
+
+		is_nontrivial_node.construct_auxiliary_table();
+
+		{
+			const double percentage = 100.0 * double(is_nontrivial_node.popcount()) / double(all_positions.size() * 25);
+			std::cout << "result: number of non-trivial nodes = " << is_nontrivial_node.popcount() << " / " << all_positions.size() * 25
+				<< " (" << percentage << " %)" << std::endl;
+		}
+
+		{
+			uint64_t zerocount = 0;
+			for (uint64_t i = 0; i < all_positions.size(); ++i) {
+				if (is_nontrivial_node.get(i * 25) == false && is_checkmate_position.get(i) == false)++zerocount;
+			}
+			std::cout << "result: number of nodes s.t. non-checkmate & no forbidden move & trivial(unreachable) = " << zerocount << " / " << all_positions.size()
+				<< " (" << (100.0 * double(zerocount) / double(all_positions.size())) << " %)" << std::endl;
+
+			const uint64_t numer = is_nontrivial_node.popcount() - (all_positions.size() - is_checkmate_position.popcount() - zerocount), denom = is_nontrivial_node.popcount();
+			std::cout << "result: number of non-trivial nodes with forbidden move = "
+				<< numer << " / " << denom << " (" << (100.0 * double(numer) / double(denom)) << " %)" << std::endl;
+		}
+
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: count_nontrivial_node_and_make_bitvector" << std::endl;
+
+		return is_nontrivial_node.popcount();
 	}
 
-	uint64_t check_one_position(const uint64_t index) {
+	uint64_t check_one_position(const uint64_t index, std::vector<uint16_t> &dest) {
+		//この関数が呼ばれる前にcount_nontrivial_node_and_make_bitvector関数が呼ばれていることを仮定する。
 		//盤面all_positions[index]の全てのノード（禁じ手によって区別される）について勝敗判定を試みる。
-		//返り値は、今回の試行で新たに勝敗判定がなされたなら、更新した判定結果を返す。さもなくば更新されなかった判定結果を返す。
+		//返り値は、今回の試行で新たに勝敗判定がなされたなら、新たになされた数を返す。さもなくば0を返す。
 
-		if (USE_HASH_TABLE) {
-			if (signature_table[index] & 0x80U)return 0ULL;
+		dest.clear();
+
+		//盤面all_positions[index]の全てのノードが自明であるならば0を返す。さもなくば、非自明なノード（たち）の現在の情報をdestにコピーする。
+		{
+			const uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+			if (is_nontrivial_bb == 0) {
+				return 0;
+			}
+			const uint64_t start_rank = is_nontrivial_node.rank1(index * 25);
+			const uint64_t pop = _mm_popcnt_u64(is_nontrivial_bb);
+			for (uint64_t i = 0; i < pop; ++i) {
+				dest.push_back(all_nontrivial_solutions[start_rank + i]);
+			}
 		}
 
-		if (all_solutions[index] == SOLUTION_ALL_WIN ||
-			all_solutions[index] == SOLUTION_ALL_LOSE) {
-			return all_solutions[index];
-		}
-
-		uint64_t next_all_solutions = all_solutions[index];
-
-		//処理がここに到達した時点で、盤面all_positions[index]はcheckmate盤面ではないと仮定する。
-		//言い換えると、予めcheck_all_positions_if_checkmate関数が呼ばれていることを仮定する。
+		//処理がここに到達したということは、
+		//盤面all_positions[index]が内包するノードのうちには非自明なノードが存在する。
 
 		uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
 		decode_ostle(all_positions[index], bb_player, bb_opponent, pos_hole);
@@ -1598,176 +1635,436 @@ private:
 		assert(moves[0] <= 24);
 
 		//まず、各指し手を指した先の局面が勝敗判定されているか調べる。
-		uint8_t outcome[32] = {}, win_num = 0, lose_num = 0, unknown_num = 0, suicide_num = 0;
+		uint64_t outcome[32] = {}, win_num = 0, lose_num = 0, unknown_num = 0, suicide_num = 0;
+		int is_suicide[32] = {};
 		for (uint8_t i = 1; i <= moves[0]; ++i) {
 			uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
 			do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[i]);
 			if (_mm_popcnt_u64(next_bb_player) == 3) {
-				outcome[i] = SUICIDE;
+				is_suicide[i] = 1;
 				++suicide_num;
 				continue;
 			}
-			const uint64_t next_code = code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole));
-			const uint64_t next_index =
-				USE_HASH_TABLE ?
-				find(next_code) :
-				(USE_LEVELWISE ? code2index_levelwise(next_code) : code2index(next_code));
 
-			if (all_solutions[next_index] == SOLUTION_ALL_WIN) {
-				outcome[i] = LOSE;
+			const uint64_t next_position_index = code2index(code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole)));
+
+			//指すとチェックメイト盤面になる手は、指すと負ける手である。
+			if (is_checkmate_position.get(next_position_index)) {
+				outcome[i] = 1;
 				++lose_num;
 				continue;
 			}
-			if (all_solutions[next_index] == SOLUTION_ALL_LOSE) {
-				outcome[i] = WIN;
-				++win_num;
-				continue;
-			}
-			if (all_solutions[next_index] == 0) {
-				outcome[i] = UNLABELED;
-				++unknown_num;
-				continue;
-			}
 
+			//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、どのノードに到達したのか求める。
 			generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
 			int forbidden_index = 0;
 			for (uint8_t j = 1; j <= next_moves[0]; ++j) {
 				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
 				do_move(bb1, bb2, pos, next_moves[j]);
-				if (_mm_popcnt_u64(bb1) == 3)continue;
 				if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
 					forbidden_index = j;
 					break;
 				}
 			}
-			const uint64_t next_solution = (all_solutions[next_index] >> (forbidden_index * 2)) % 4;
-			if (next_solution == LOSE) {
-				outcome[i] = WIN;
-				if (++win_num >= 2)break;
-			}
-			else if (next_solution == WIN) {
-				outcome[i] = LOSE;
-				++lose_num;
-			}
-			else {
-				assert(next_solution == UNLABELED);
-				outcome[i] = UNLABELED;
+			const uint64_t next_node_index = next_position_index * 25 + forbidden_index;
+			const uint64_t next_node_rank = is_nontrivial_node.rank1(next_node_index);
+			assert(is_nontrivial_node.get(next_node_index));
+
+			const uint64_t next_solution = all_nontrivial_solutions[next_node_rank];
+			if (next_solution == 0) {
+				outcome[i] = 0;
 				++unknown_num;
 			}
-
-		}
-
-		//2つ以上の指し手が勝利をもたらすなら、禁じ手がどれであろうと勝利が確定する。
-		if (win_num >= 2) {
-			return SOLUTION_ALL_WIN;
+			else if (next_solution % 2 == 1) {
+				//i番目の指し手を指した先の局面から、奇数の手数でチェックメイト盤面に到達するということは、勝てる指し手だということ
+				outcome[i] = next_solution + 1;//勝てる指し手のoutcomeは偶数
+				++win_num;
+			}
+			else {
+				//i番目の指し手を指した先の局面から、偶数の手数でチェックメイト盤面に到達するということは、負ける指し手だということ
+				outcome[i] = next_solution + 1;//負ける指し手のoutcomeは奇数
+				++lose_num;
+			}
 		}
 
 		assert(int(win_num) + int(lose_num) + int(unknown_num) + int(suicide_num) == int(moves[0]));
 
-		//1つの指し手Xだけが勝利確定手の場合
-		if (win_num == 1) {
-			for (uint8_t i = 0; i <= moves[0]; ++i) {
-				const uint8_t present_solution = uint8_t((all_solutions[index] >> (i * 2)) % 4);
-				if (i == 0 || outcome[i] != WIN) {
-					//禁じ手が存在しないか、禁じ手がX以外である場合は、（Xを指せばいいので）勝利が確定する。
-					assert(present_solution == UNLABELED || present_solution == WIN);
-					if (present_solution == UNLABELED) {
-						next_all_solutions |= uint64_t(WIN) << (i * 2);
-					}
-				}
-				else {
-					//Xが禁じ手である場合、X以外の指し手が全て敗北確定ならば「Xが禁じ手である場合は敗北」と確定する。さもなくば未確定である。
-					if (unknown_num == 0) {
-						assert(present_solution == UNLABELED || present_solution == LOSE);
-						if (present_solution == UNLABELED) {
-							next_all_solutions |= uint64_t(LOSE) << (i * 2);
-						}
+		uint64_t answer = 0;
+
+		//2つ以上の指し手が勝利をもたらすなら、禁じ手がどれであろうと勝利が確定する。
+		if (win_num >= 2) {
+
+			//最短で勝利できる手（最短勝利手）の添字と、最短勝利手が複数あるかどうかを調べる。
+			int min_index = -1;
+			bool tie_flag = false;
+			for (int i = 1; i <= moves[0]; ++i) {
+				if (outcome[i] != 0 && outcome[i] % 2 == 0) {
+					if (min_index == -1) {
+						min_index = i;
 					}
 					else {
-						assert(present_solution == UNLABELED);
+						if (outcome[i] < outcome[min_index]) {
+							min_index = i;
+							tie_flag = false;
+						}
+						else if (outcome[i] == outcome[min_index]) {
+							tie_flag = true;
+						}
 					}
 				}
 			}
-			return next_all_solutions;
+
+			uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+			for (uint32_t i = 0, x = 0; bitscan_forward64(is_nontrivial_bb, &x); ++i, is_nontrivial_bb &= is_nontrivial_bb - 1) {
+
+				//「そのノードに禁じ手が無いか、そのノードの禁じ手が最短勝利手ではないか、最短勝利手が複数ある」ならば、そのノードは最短勝利手の手数で勝利できる。
+				if (x != min_index || tie_flag) {
+					assert(min_index != -1);
+					assert(dest[i] == 0 || dest[i] >= outcome[min_index]);
+					if (dest[i] != outcome[min_index]) {
+						++answer;
+						dest[i] = outcome[min_index];
+					}
+				}
+				else {
+					//唯一の最短勝利手が禁じ手のノードは、二番目に速く勝利できる手の手数で勝利できる。
+					int second_min_index = -1;
+					for (int j = 1; j <= moves[0]; ++j) {
+						if (outcome[j] != 0 && outcome[j] % 2 == 0 && outcome[j] != outcome[min_index]) {
+							if (second_min_index == -1) {
+								second_min_index = j;
+							}
+							else {
+								if (outcome[j] < outcome[second_min_index]) {
+									second_min_index = j;
+								}
+							}
+						}
+					}
+					assert(second_min_index != -1);
+
+					if (!(dest[i] == 0 || dest[i] >= outcome[second_min_index])) {
+						std::cout << i << std::endl;
+						std::cout << dest[i] << std::endl;
+						std::cout << second_min_index << std::endl;
+						std::cout << outcome[second_min_index] << std::endl;
+						assert(dest[i] == 0 || dest[i] >= outcome[second_min_index]);//debug
+					}
+
+					assert(dest[i] == 0 || dest[i] >= outcome[second_min_index]);
+					if (dest[i] != outcome[second_min_index]) {
+						++answer;
+						dest[i] = outcome[second_min_index];
+					}
+				}
+			}
+
+			return answer;
+		}
+
+		//1つの指し手Xだけが勝利確定手の場合
+		if (win_num == 1) {
+
+			//Xの添字を調べる。
+			int win_index = -1;
+			for (int i = 1; i <= moves[0]; ++i) {
+				if (outcome[i] != 0 && outcome[i] % 2 == 0) {
+					win_index = i;
+					break;
+				}
+			}
+
+			uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+			for (uint32_t i = 0, x = 0; bitscan_forward64(is_nontrivial_bb, &x); ++i, is_nontrivial_bb &= is_nontrivial_bb - 1) {
+
+				//「そのノードに禁じ手が無いか、そのノードの禁じ手がXではない」ならば、そのノードはXの手数で勝利できる。
+				if (x != win_index) {
+					assert(win_index != -1);
+					assert(dest[i] == 0 || dest[i] >= outcome[win_index]);
+					if (dest[i] != outcome[win_index]) {
+						++answer;
+						dest[i] = outcome[win_index];
+					}
+				}
+				else {
+					//Xが禁じ手のノードについて
+
+					//X以外が全て敗北確定の場合、そのノードの敗北が確定する。
+					if (unknown_num == 0) {
+
+						//敗北する手のうち手数が最長の手の添字を調べる。
+						int max_index = -1;
+						for (int j = 1; j <= moves[0]; ++j) {
+							if (outcome[j] != 0 && outcome[j] % 2 == 1) {
+								if (max_index == -1) {
+									max_index = j;
+								}
+								else {
+									if (outcome[j] > outcome[max_index]) {
+										max_index = j;
+									}
+								}
+							}
+						}
+						assert(max_index != -1);//X以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
+						//assert(dest[i] <= outcome[max_index]);
+						if (dest[i] != outcome[max_index]) {
+							++answer;
+							dest[i] = outcome[max_index];
+						}
+
+					}
+					else {
+						//未確定の手が存在するならば、そのノードは未確定である。
+						assert(dest[i] == 0);
+					}
+				}
+			}
+
+			return answer;
 		}
 
 		//全ての指し手が敗北確定なら、禁じ手がどれであろうと敗北が確定する。
 		if (win_num == 0 && unknown_num == 0) {
-			return SOLUTION_ALL_LOSE;
+
+			//最長手数で敗北する手（最長敗北手）の添字と、最長敗北手が複数あるかどうかを調べる。
+			int max_index = -1;
+			bool tie_flag = false;
+			for (int i = 1; i <= moves[0]; ++i) {
+				if (outcome[i] != 0 && outcome[i] % 2 == 1) {
+					if (max_index == -1) {
+						max_index = i;
+					}
+					else {
+						if (outcome[i] > outcome[max_index]) {
+							max_index = i;
+							tie_flag = false;
+						}
+						else if (outcome[i] == outcome[max_index]) {
+							tie_flag = true;
+						}
+					}
+				}
+			}
+
+			uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+			for (uint32_t i = 0, x = 0; bitscan_forward64(is_nontrivial_bb, &x); ++i, is_nontrivial_bb &= is_nontrivial_bb - 1) {
+
+				//「そのノードに禁じ手が無いか、そのノードの禁じ手が最長敗北手ではないか、最長敗北手が複数ある」ならば、そのノードは最長敗北手の手数で敗北する。
+				if (x != max_index || tie_flag) {
+					assert(max_index != -1);
+					//assert(dest[i] <= outcome[max_index]);
+					if (dest[i] != outcome[max_index]) {
+						++answer;
+						dest[i] = outcome[max_index];
+					}
+				}
+				else {
+					//唯一の最長敗北手が禁じ手のノードは、二番目に長い手数で敗北する手の手数で敗北する。
+					int second_max_index = -1;
+					for (int j = 1; j <= moves[0]; ++j) {
+						if (outcome[j] != 0 && outcome[j] % 2 == 1 && outcome[j] != outcome[max_index]) {
+							if (second_max_index == -1) {
+								second_max_index = j;
+							}
+							else {
+								if (outcome[j] > outcome[second_max_index]) {
+									second_max_index = j;
+								}
+							}
+						}
+					}
+					assert(second_max_index != -1);//唯一の最長敗北手以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
+					//assert(dest[i] <= outcome[second_max_index]);
+					if (dest[i] != outcome[second_max_index]) {
+						++answer;
+						dest[i] = outcome[second_max_index];
+					}
+				}
+			}
+
+			return answer;
 		}
 
 		//ただ1つの指し手Xが未確定で、それ以外全ての指し手が敗北確定の場合
 		if (win_num == 0 && unknown_num == 1) {
-			for (uint8_t i = 0; i <= moves[0]; ++i) {
-				const uint64_t present_solution = (all_solutions[index] >> (i * 2)) % 4;
-				if (i == 0) {
-					//禁じ手が存在しない場合は（Xを指せるので）未確定。
-					assert(present_solution == UNLABELED);
-					continue;
-				}
-				else if (outcome[i] == UNLABELED) {
-					//Xが禁じ手である場合は敗北が確定する。
-					assert(present_solution == UNLABELED || present_solution == LOSE);
-					if (present_solution == UNLABELED) {
-						next_all_solutions |= uint64_t(LOSE) << (i * 2);
-					}
-				}
-				else {
-					//X以外が禁じ手である場合は（Xを指せるので）未確定。
 
-					assert(outcome[i] == LOSE || outcome[i] == SUICIDE);
-					assert(present_solution == UNLABELED);
+			//Xの添字を調べる。
+			int unknown_index = -1;
+			for (int i = 1; i <= moves[0]; ++i) {
+				if (is_suicide[i] == 0 && outcome[i] == 0) {
+					unknown_index = i;
+					break;
 				}
 			}
-			return next_all_solutions;
+
+			uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+			for (uint32_t i = 0, x = 0; bitscan_forward64(is_nontrivial_bb, &x); ++i, is_nontrivial_bb &= is_nontrivial_bb - 1) {
+
+				//「そのノードに禁じ手が無いか、そのノードの禁じ手がXではない」ならば、そのノードは未確定である。
+				if (x != unknown_index) {
+					assert(unknown_index != -1);
+					assert(dest[i] == 0);
+				}
+				else {
+					//Xが禁じ手のノードは敗北が確定する。
+
+					//敗北する手のうち手数が最長の手の添字を調べる。
+					int max_index = -1;
+					for (int j = 1; j <= moves[0]; ++j) {
+						if (outcome[j] != 0 && outcome[j] % 2 == 1) {
+							if (max_index == -1) {
+								max_index = j;
+							}
+							else {
+								if (outcome[j] > outcome[max_index]) {
+									max_index = j;
+								}
+							}
+						}
+					}
+					assert(max_index != -1);//X以外全て自殺手であるケースがもしあればここで落ちる。（ないだろうと思う。証明したければ全盤面そうでないと確かめればいい）
+					//assert(dest[i] <= outcome[max_index]);
+					if (dest[i] != outcome[max_index]) {
+						++answer;
+						dest[i] = outcome[max_index];
+					}
+				}
+			}
+
+			return answer;
 		}
 
 		//ここに到達したということは、勝利確定手が見つかっておらず、かつ未確定の指し手が2つ以上存在する。
 		assert(win_num == 0 && unknown_num >= 2);
 
 		//その場合は禁じ手がどれであろうと未確定である。
-		assert(all_solutions[index] == 0);
+
+		uint64_t is_nontrivial_bb = is_nontrivial_node.get_bb_position(index);
+		for (uint32_t i = 0, x = 0; bitscan_forward64(is_nontrivial_bb, &x); ++i, is_nontrivial_bb &= is_nontrivial_bb - 1) {
+			assert(dest[i] == 0);
+		}
+
 		return 0;
 	}
 
-	uint64_t retrograde_analysis_single_iteration_serial() {
-		uint64_t updated_num = 0;
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			const uint64_t next_solution = check_one_position(i);
-			updated_num += (next_solution != all_solutions[i]) ? 1 : 0;
-			all_solutions[i] = next_solution;
-		}
-		return updated_num;
-	}
+	std::pair<uint64_t, uint64_t> retrograde_analysis_single_iteration() {
 
-	uint64_t retrograde_analysis_single_iteration_parallel() {
-
-		constexpr uint64_t TASK_SIZE = 1'000'000ULL;
+		uint64_t TASK_SIZE = 1'000'000ULL;
 
 		std::vector<uint64_t>next_solutions;
 		next_solutions.reserve(TASK_SIZE);
 
-		uint64_t updated_num = 0;
+		uint64_t updated_num = 0, denovo = 0;
 
 		for (uint64_t t = 0; t < all_positions.size(); t += TASK_SIZE) {
 
-			next_solutions.resize(std::min(TASK_SIZE, all_positions.size() - t));
+			const int64_t start = t, end = std::min(t + TASK_SIZE, uint64_t(all_positions.size()));
 
-			const int64_t start = t, end = t + next_solutions.size();
+			const uint64_t offset = is_nontrivial_node.rank1(start * 25);
+			next_solutions.resize(is_nontrivial_node.rank1(end * 25) - offset);
+
+			uint64_t sum_result = 0;
 
 #pragma omp parallel for schedule(guided)
 			for (int64_t i = start; i < end; ++i) {
-				const uint64_t next_solution = check_one_position(i);
-				next_solutions[i - start] = next_solution;
+				std::vector<uint16_t>dest;
+				const uint64_t result = check_one_position(i, dest);
+				const uint64_t start_rank = is_nontrivial_node.rank1(uint64_t(i * 25));
+				if (result) {
+
+#pragma omp critical
+					{
+						sum_result += result;
+					}
+
+				}
+				for (uint64_t j = 0; j < dest.size(); ++j) {
+					next_solutions[start_rank - offset + j] = dest[j];
+				}
+
 			}
 
-			for (int64_t i = start; i < end; ++i) {
-				updated_num += (next_solutions[i - start] != all_solutions[i]) ? 1 : 0;
-				all_solutions[i] = next_solutions[i - start];
+			uint64_t changed_num = 0;
+			for (uint64_t i = 0; i < next_solutions.size(); ++i) {
+				if (all_nontrivial_solutions[offset + i] != next_solutions[i]) {
+					++changed_num;
+					if (all_nontrivial_solutions[offset + i] == 0) {
+						++denovo;
+					}
+					else {
+						assert(next_solutions[i] != 0);
+						assert((all_nontrivial_solutions[offset + i] % 2) == (next_solutions[i] % 2));
+					}
+					all_nontrivial_solutions[offset + i] = next_solutions[i];
+				}
 			}
 
+			assert(sum_result == changed_num);
+
+			updated_num += sum_result;
 		}
-		return updated_num;
+		return { updated_num, denovo };
+	}
+
+	std::vector<uint16_t>next_nontrivial_solutions;
+
+	std::pair<uint64_t, uint64_t> retrograde_analysis_single_iteration_batch() {
+
+		assert(all_nontrivial_solutions.size() == is_nontrivial_node.rank1(all_positions.size() * 25));
+		assert(all_nontrivial_solutions.size() == is_nontrivial_node.popcount());
+
+		next_nontrivial_solutions.clear();
+		next_nontrivial_solutions.resize(all_nontrivial_solutions.size());
+
+		uint64_t updated_num = 0, denovo = 0;
+
+		const int64_t siz = all_positions.size();
+
+		const int64_t CHANK_SIZE = 100;
+
+		uint64_t sum_result = 0;
+
+#pragma omp parallel for schedule(dynamic, 1000)
+		for (int64_t i = 0; i < siz; i += CHANK_SIZE) {
+			std::vector<uint16_t>dest;
+			for (int64_t j = i; j < siz && j < i + CHANK_SIZE; ++j) {
+				const uint64_t result = check_one_position(j, dest);
+				const uint64_t start_rank = is_nontrivial_node.rank1(uint64_t(j * 25));
+				if (result) {
+
+#pragma omp critical
+					{
+						sum_result += result;
+					}
+
+				}
+				for (uint64_t k = 0; k < dest.size(); ++k) {
+					next_nontrivial_solutions[start_rank + k] = dest[k];
+				}
+			}
+		}
+
+		uint64_t changed_num = 0;
+		for (uint64_t i = 0; i < next_nontrivial_solutions.size(); ++i) {
+			if (all_nontrivial_solutions[i] != next_nontrivial_solutions[i]) {
+				++changed_num;
+				if (all_nontrivial_solutions[i] == 0) {
+					++denovo;
+				}
+				else {
+					assert(next_nontrivial_solutions[i] != 0);
+					assert((all_nontrivial_solutions[i] % 2) == (next_nontrivial_solutions[i] % 2));
+				}
+				all_nontrivial_solutions[i] = next_nontrivial_solutions[i];
+			}
+		}
+
+		assert(sum_result == changed_num);
+
+		updated_num += sum_result;
+
+		return { updated_num, denovo };
 	}
 
 public:
@@ -1793,65 +2090,50 @@ public:
 
 	void do_enumerate() {
 		PositionEnumerator p;
-		p.do_enumerate(num_start_piece, all_positions, PARALLEL);
+		p.do_enumerate(num_start_piece, all_positions);
 	}
 
 	void retrograde_analysis() {
 
-		std::cout << "LOG: start: retrograde_analysis" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] start: retrograde_analysis" << std::endl;
 
+		count_nontrivial_node_and_make_bitvector();
 
-		if (USE_HASH_TABLE) {
-			prepare_for_hashtable();
-		}
-		else {
-			if (USE_LEVELWISE) {
-				shuffle_sorted_to_levelwise();
-			}
-		}
-
-		all_solutions.clear();
-		all_solutions.resize(all_positions.size());
-
-		check_all_positions_if_checkmate();
+		all_nontrivial_solutions.clear();
+		all_nontrivial_solutions.resize(is_nontrivial_node.popcount());
 
 		for (int iteration = 1;; ++iteration) {
-			std::cout << "LOG: start: iteration " << iteration << std::endl;
+			std::cout << "LOG: [" << get_datetime_str() << "] start: iteration " << iteration << std::endl;
 			const auto t = std::chrono::system_clock::now();
 
-			const uint64_t updated_num =
-				PARALLEL ?
-				retrograde_analysis_single_iteration_parallel() :
-				retrograde_analysis_single_iteration_serial();
+			//const auto updated_num = retrograde_analysis_single_iteration_batch();
+			const auto updated_num = retrograde_analysis_single_iteration();
 
 			const auto s = std::chrono::system_clock::now();
 			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-			std::cout << "LOG: finish: iteration " << iteration << " : updated_num = " << updated_num << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
-			if (updated_num == 0)break;
+			std::cout << "LOG: [" << get_datetime_str() << "] finish: iteration " << iteration
+				<< " : updated_num = " << updated_num.first << "(denovo = " << updated_num.second << "), elapsed time = " << elapsed << " ms" << std::endl;
+			if (updated_num.first == 0)break;
 		}
 
-		std::cout << "LOG: finish: retrograde_analysis" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: retrograde_analysis" << std::endl;
 	}
 
 	uint64_t calc_final_result_hashvalue() {
 		//全盤面とその解析結果の組に関するハッシュ値を生成して返す。
-		//USE_HASH_TABLE, USE_LEVELWISE, PARALLELの有無によって計算結果が変わらないはずだが、これを確かめるのに使う。
-		//USE_HASH_TABLE, USE_LEVELWISEの有無によってall_positionsの中身の順番が異なるので、可換な演算でreduceする必要がある。
-
-		assert(all_positions.size() == all_solutions.size());
-		if (USE_HASH_TABLE) {
-			assert(all_positions.size() == signature_table.size());
-		}
 
 		Encoder_AES encoder(123456);
 
 		__m128i answer = _mm_setzero_si128();
 
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			if (USE_HASH_TABLE) {
-				if (signature_table[i] & 0x80U)continue;
-			}
-			const __m128i x = encoder.aes128_enc(all_positions[i], all_solutions[i]);
+			const __m128i x = encoder.aes128_enc(all_positions[i], i);
+			answer = _mm_xor_si128(x, answer);//xorは可換
+		}
+
+
+		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
+			const __m128i x = encoder.aes128_enc(all_nontrivial_solutions[i], i);
 			answer = _mm_xor_si128(x, answer);//xorは可換
 		}
 
@@ -1860,229 +2142,128 @@ public:
 		return a[0] ^ a[1];
 	}
 
-	void output_results(const std::string filename) {
+	void output_positions_and_win_lose_solutions(const std::string filename) {
 
-		assert(all_positions.size() == all_solutions.size());
-		if (USE_HASH_TABLE) {
-			assert(all_positions.size() == signature_table.size());
-		}
+		//assert(all_positions.size() == all_solutions.size());
 
-		constexpr int BUFSIZE = 2 * 1024 * 1024;
-		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic
+		//constexpr int BUFSIZE = 2 * 1024 * 1024;
+		//static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic
 
-		std::ofstream writing_file;
-		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
-		uint64_t count = 0;
-		std::string code1, code2;
-		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
+		//std::ofstream writing_file;
+		//writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
+		//uint64_t count = 0;
+		//std::string code1, code2;
+		//constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
 
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			if (USE_HASH_TABLE) {
-				if (signature_table[i] & 0x80U)continue;
-			}
-			if (count % SINGLE_FILE_LIMIT == 0) {
-				if (count) {
-					writing_file.close();
-				}
-				writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
-			}
-			encode_base64(all_positions[i], code1);
-			encode_base64(all_solutions[i], code2);
-			writing_file << code1 << "," << code2 << std::endl;
-			++count;
-		}
-		if (all_positions.size()) {
-			writing_file.close();
-		}
+		//for (uint64_t i = 0; i < all_positions.size(); ++i) {
+		//	if (count % SINGLE_FILE_LIMIT == 0) {
+		//		if (count) {
+		//			writing_file.close();
+		//		}
+		//		writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
+		//	}
+		//	encode_base64(all_positions[i], code1);
+		//	encode_base64(all_solutions[i], code2);
+		//	writing_file << code1 << "," << code2 << std::endl;
+		//	++count;
+		//}
+		//if (all_positions.size()) {
+		//	writing_file.close();
+		//}
 	}
+
+	int query(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const uint64_t forbidden_bb_player, const uint64_t forbidden_bb_opponent, const uint64_t forbidden_pos_hole) {
+
+		const bool valid_input =
+			((bb_player & BB_ALL_8X8_5X5) == bb_player) &&
+			((bb_opponent & BB_ALL_8X8_5X5) == bb_opponent) &&
+			((bb_player & bb_opponent) == 0) &&
+			(pos_hole < 25) &&
+			(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5) &&
+			(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
+
+		if (!valid_input)return -1;//invalidな盤面が入力された
+
+		const auto c2i_or_error = [&](const uint64_t c) {
+			uint64_t lower = 0, upper = all_positions.size();
+
+			while (lower + 1ULL < upper) {
+				const uint64_t mid = (lower + upper) / 2;
+				if (all_positions[mid] == c)return mid;
+				else if (all_positions[mid] <= c)lower = mid;
+				else upper = mid;
+			}
+
+			if (all_positions[lower] != c)return uint64_t(0xFFFF'FFFF'FFFF'FFFFULL);//error
+
+			return lower;
+		};
+
+		const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
+		const uint64_t index = c2i_or_error(code);
+		if (index == 0xFFFF'FFFF'FFFF'FFFFULL)return -2;//なぜかall_positions配列のなかにに入力盤面が存在しなかった
+
+		if (is_checkmate(bb_player, bb_opponent, pos_hole))return -3;//チェックメイト盤面である
+
+		Moves moves;
+
+		generate_moves(bb_opponent, bb_player, pos_hole, moves);
+		uint64_t forbidden_index = 0;
+		for (uint8_t i = 1; i <= moves[0]; ++i) {
+			uint64_t bb1 = bb_opponent, bb2 = bb_player, pos = pos_hole;
+			do_move(bb1, bb2, pos, moves[i]);
+			if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
+				forbidden_index = i;
+				break;
+			}
+		}
+
+		if (!is_nontrivial_node.get(index * 25 + forbidden_index))return -4;//入力の（盤面、禁じ手）の組み合わせに到達できない
+
+		const uint64_t rank = is_nontrivial_node.rank1(index * 25 + forbidden_index);
+
+		if (all_nontrivial_solutions.size() <= rank)return -5;//なぜかall_nontrivial_solutions配列のなかに入力局面がそんざいしなかった
+
+		return all_nontrivial_solutions[rank];//返り値が0ならば引き分け、正の数ならばチェックメイトまでの手数（奇数なら手番側の勝ち、偶数なら手番側の負け）
+	}
+
+
+
+
+
+
+	void print_statistics_of_results() {
+		std::cout << "LOG: [" << get_datetime_str() << "] start: print_statistics_of_results" << std::endl;
+		uint64_t max_num = 0;
+		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
+			max_num = std::max(max_num, uint64_t(all_nontrivial_solutions[i]));
+		}
+		std::vector<uint64_t>histogram(max_num + 1, 0);
+		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
+			++histogram[all_nontrivial_solutions[i]];
+		}
+		std::cout << "result: number of nontrivial positions of which distance to endgame is:" << std::endl;
+		for (uint64_t i = 0; i < histogram.size(); ++i) {
+			std::cout << "result: " << i << " : " << histogram[i] << std::endl;
+		}
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: print_statistics_of_results" << std::endl;
+	}
+
+
 };
 
-uint64_t enumerate_binarysearch_parallel() {
-	std::cout << "LOG: start: enumerate_binarysearch_parallel" << std::endl;
-	OstleEnumerator<false, true, true> e(8);
+uint64_t solve_8() {
+	std::cout << "LOG: [" << get_datetime_str() << "] start: solve_8" << std::endl;
+	OstleEnumerator e(8);
 	e.do_enumerate();
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_binarysearch_parallel. fingerprint = " << fingerprint << std::endl;
+	e.print_statistics_of_results();
+	std::cout << "LOG: [" << get_datetime_str() << "] finish: solve_8. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
 
-uint64_t enumerate_binarysearch_serial() {
-	std::cout << "LOG: start: enumerate_binarysearch_serial" << std::endl;
-	OstleEnumerator<false, true, false> e(8);
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_binarysearch_serial. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
 
-uint64_t enumerate_hashtable_parallel() {
-	std::cout << "LOG: start: enumerate_hashtable_parallel" << std::endl;
-	OstleEnumerator<true, true, true> e(8);
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_hashtable_parallel. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
-uint64_t enumerate_hashtable_serial() {
-	std::cout << "LOG: start: enumerate_hashtable_serial" << std::endl;
-	OstleEnumerator<true, true, false> e(8);
-	e.do_enumerate();
-	e.retrograde_analysis();
-	const uint64_t fingerprint = e.calc_final_result_hashvalue();
-	std::cout << "LOG: finish: enumerate_hashtable_serial. fingerprint = " << fingerprint << std::endl;
-	return fingerprint;
-}
-
-void test_all_strategies() {
-	const uint64_t fingerprint1 = enumerate_binarysearch_parallel();
-	const uint64_t fingerprint2 = enumerate_binarysearch_serial();
-	const uint64_t fingerprint3 = enumerate_hashtable_parallel();
-	const uint64_t fingerprint4 = enumerate_hashtable_serial();
-	assert(fingerprint1 == fingerprint2);
-	assert(fingerprint1 == fingerprint3);
-	assert(fingerprint1 == fingerprint4);
-	std::cout << "test clear!" << std::endl;
-}
-
-
-
-
-
-
-
-uint64_t shiftxor_forward(uint64_t x, int s) {
-	return x ^ (x >> s);
-}
-
-uint64_t split_mix_64(uint64_t x) {
-
-	// SplitMix64
-	// http://prng.di.unimi.it/splitmix64.c
-
-	x += 0x9e3779b97f4a7c15ULL;
-	x = shiftxor_forward(x, 30);
-	x *= 0xbf58476d1ce4e5b9ULL;
-	x = shiftxor_forward(x, 27);
-	x *= 0x94d049bb133111ebULL;
-	x = shiftxor_forward(x, 31);
-	return x;
-}
-
-
-void dfs_binary_tree(const uint64_t index, const uint64_t level, uint64_t &counter, std::vector<uint64_t> &v) {
-
-	if (index * 2 + 1 < v.size()) {
-		dfs_binary_tree(index * 2 + 1, level + 1, counter, v);
-	}
-
-	v[counter++] |= level << 55;
-
-	if (index * 2 + 2 < v.size()) {
-		dfs_binary_tree(index * 2 + 2, level + 1, counter, v);
-	}
-}
-
-void shuffle_sorted_to_levelwise(std::vector<uint64_t> &v) {
-	//vが昇順にソートされていると仮定して、かつ55bitで収まっていると仮定して、levelwiseに並べ替える。
-
-	for (uint64_t i = 1; i < v.size(); ++i) {
-		assert(v[i - 1] < v[i]);
-	}
-	assert(v.back() < (1ULL << 55));
-
-	uint64_t counter = 0;
-	dfs_binary_tree(0, 1, counter, v);
-	assert(counter == v.size());
-
-	std::sort(v.begin(), v.end());
-
-	for (uint64_t i = 0; i < v.size(); ++i) {
-		v[i] &= (1ULL << 55) - 1ULL;
-	}
-}
-
-
-uint64_t c2i(const uint64_t c, const std::vector<uint64_t> &table) {
-	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
-	//tableが昇順にソートされていると仮定して二分探索で求める。
-
-	uint64_t lower = 0, upper = table.size();
-
-	while (lower + 1ULL < upper) {
-		const uint64_t mid = (lower + upper) / 2;
-		if (table[mid] == c)return mid;
-		else if (table[mid] <= c)lower = mid;
-		else upper = mid;
-	}
-
-	assert(table[lower] == c);
-	return lower;
-}
-
-uint64_t c2i_levelwise(const uint64_t c, const std::vector<uint64_t> &table) {
-	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
-	//tableが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
-
-	uint64_t i = 0;
-	while (table[i] != c) {
-		if (table[i] < c) {
-			i = i * 2 + 2;
-		}
-		else {
-			i = i * 2 + 1;
-		}
-		assert(i < table.size());
-	}
-	return i;
-}
-
-template<bool LEVELWISE> void speedtest_c2i(const uint64_t size, const uint64_t num_trial, const uint64_t seed) {
-
-	std::vector<uint64_t>test_table(size);
-
-	test_table[0] = seed;
-	for (uint64_t i = 1; i < size; ++i) {
-		test_table[i] = split_mix_64(test_table[i - 1]);
-	}
-	for (uint64_t i = 0; i < size; ++i) {
-		test_table[i] &= (1ULL << 55) - 1ULL;
-	}
-
-	std::sort(test_table.begin(), test_table.end());
-
-	for (uint64_t i = 1; i < size; ++i) {
-		assert(test_table[i - 1] < test_table[i]);
-	}
-
-	if (LEVELWISE) {
-		shuffle_sorted_to_levelwise(test_table);
-	}
-
-	std::cout << "LOG: start: speedtest_c2i : " << (LEVELWISE ? "LEVELWISE" : "NOT LEVELWISE") << std::endl;
-	const auto t = std::chrono::system_clock::now();
-
-	const uint64_t N = std::min(num_trial, size);
-	uint64_t result = 0;
-	for (uint64_t i = 0, c = seed; i < N; ++i, c = split_mix_64(c)) {
-		const uint64_t x = LEVELWISE ? c2i_levelwise(c & ((1ULL << 55) - 1ULL), test_table) : c2i(c & ((1ULL << 55) - 1ULL), test_table);
-		result += x;
-	}
-
-	const auto s = std::chrono::system_clock::now();
-	const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-	std::cout << "LOG: result = " << result << ", size = " << size << ", num_trial = " << N << ", elapsed time = " << elapsed << " milliseconds" << std::endl;
-}
-
-void speedtest_binarysearch() {
-	const uint64_t size = 100'000'000ULL;
-	const uint64_t num_trial = 100'000'000ULL;
-	speedtest_c2i<true>(size, num_trial, 12345);
-	speedtest_c2i<false>(size, num_trial, 12345);
-}
 
 
 
@@ -2092,6 +2273,7 @@ void unittests() {
 	test_checkmate_detector_func(12345, 100000);
 	test_bitboard_symmetry(12345, 100000);
 	test_base64_func(12345, 100000);
+	test_bit_vector(12345, 100000);
 
 	std::cout << "test clear!" << std::endl;
 }
@@ -2112,52 +2294,37 @@ int main(int argc, char *argv[]) {
 	//static_assert(std::is_same<int32_t, int>::value);
 	//static_assert(std::is_same<uint64_t, size_t>::value);
 
+
+#ifdef _MSC_VER
+	SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);
+#endif
+
+
 	init_move_tables();
 
-	if (argc == 3 && std::string(argv[1]) == std::string("go") && (std::string(argv[2]) == std::string("parallel") || std::string(argv[2]) == std::string("serial"))) {
-		std::cout << "LOG: start: analyze the all positions" << std::endl;
+	if (argc == 2 && std::string(argv[1]) == std::string("go")) {
+		std::cout << "LOG: [" << get_datetime_str() << "] start: analyze the all positions" << std::endl;
 		const auto t = std::chrono::system_clock::now();
 
-		uint64_t fingerprint = 0;
-		if (std::string(argv[2]) == std::string("parallel")) {
-			OstleEnumerator<false, false, true>e(10);
-			e.do_enumerate();
-			e.retrograde_analysis();
-			e.output_results("ostle_output");
-			fingerprint = e.calc_final_result_hashvalue();
-		}
-		else {
-			OstleEnumerator<false, false, false>e(10);
-			e.do_enumerate();
-			e.retrograde_analysis();
-			e.output_results("ostle_output");
-			fingerprint = e.calc_final_result_hashvalue();
-		}
+		OstleEnumerator e(10);
+		e.do_enumerate();
+		e.retrograde_analysis();
+		e.output_positions_and_win_lose_solutions("ostle_output");
+		const uint64_t fingerprint = e.calc_final_result_hashvalue();
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
 
 		return 0;
 	}
 	else if (argc == 2 && std::string(argv[1]) == std::string("test")) {
 		unittests();
-		test_all_strategies();
-		speedtest_binarysearch();
 		return 0;
 	}
-	else {
-		std::cout << "LOG: notice: no command-line input" << std::endl;
-		std::cout << "LOG: start: analyze (4,4) positions" << std::endl;
-		const auto t = std::chrono::system_clock::now();
-		OstleEnumerator<false, false, true>e(8);
-		e.do_enumerate();
-		e.retrograde_analysis();
-		e.output_results("ostle_output");
-		const auto s = std::chrono::system_clock::now();
-		const auto fingerprint = e.calc_final_result_hashvalue();
-		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: finish: analyze (4,4) positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
-	}
+
+	std::cout << "LOG: [" << get_datetime_str() << "] notice: no command-line input" << std::endl;
+	solve_8();
+	std::cout << "LOG: [" << get_datetime_str() << "] finish" << std::endl;
 
 
 	return 0;
