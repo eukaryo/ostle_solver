@@ -2112,8 +2112,8 @@ public:
 			std::cout << "LOG: [" << get_datetime_str() << "] start: iteration " << iteration << std::endl;
 			const auto t = std::chrono::system_clock::now();
 
-			const auto updated_num = retrograde_analysis_single_iteration_batch();
-			//const auto updated_num = retrograde_analysis_single_iteration();
+			//const auto updated_num = retrograde_analysis_single_iteration_batch();
+			const auto updated_num = retrograde_analysis_single_iteration();
 
 			const auto s = std::chrono::system_clock::now();
 			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
@@ -2152,9 +2152,9 @@ public:
 		return a[0] ^ a[1];
 	}
 
-	void output_positions_and_win_lose_solutions(const std::string filename) {
+	void output_positions_and_solutions(const std::string filename) {
 
-		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_win_lose_solutions" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_solutions" << std::endl;
 
 		constexpr int BUFSIZE = 2 * 1024 * 1024;
 		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
@@ -2164,6 +2164,7 @@ public:
 		uint64_t count = 0;
 		std::string text;
 		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
+		const std::string SERIAL_TRIVIAL_CODE = "-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 		uint64_t node_index = 0;
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
@@ -2176,13 +2177,16 @@ public:
 
 			encode_base64(all_positions[i], text);
 			const uint64_t bb = is_nontrivial_node.get_bb_position(i);
-			for (uint64_t j = 0; j < 25; ++j) {
-				text += ",";
-				if (bb & (1ULL << j)) {
-					text += std::to_string(all_nontrivial_solutions[node_index++]);
-				}
-				else {
-					text += "_";
+			if (is_checkmate_position.get(i)) {
+				assert(bb == 0);
+				text += ",checkmate";
+			}
+			else {
+				for (uint64_t j = 0; j < 25; ++j) {
+					text += ",";
+					if (bb & (1ULL << j)) {
+						text += std::to_string(all_nontrivial_solutions[node_index++]);
+					}
 				}
 			}
 
@@ -2193,11 +2197,13 @@ public:
 			writing_file.close();
 		}
 
-		std::cout << "LOG: [" << get_datetime_str() << "] finish: output_positions_and_win_lose_solutions" << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: output_positions_and_solutions" << std::endl;
 
 	}
 
-	int query(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const uint64_t forbidden_bb_player, const uint64_t forbidden_bb_opponent, const uint64_t forbidden_pos_hole) {
+	int query(
+		const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole,
+		const uint64_t forbidden_bb_player, const uint64_t forbidden_bb_opponent, const uint64_t forbidden_pos_hole) {
 
 		const bool valid_input =
 			((bb_player & BB_ALL_8X8_5X5) == bb_player) &&
@@ -2224,8 +2230,7 @@ public:
 			return lower;
 		};
 
-		const uint64_t code = code_unique(encode_ostle(bb_player, bb_opponent, pos_hole));
-		const uint64_t index = c2i_or_error(code);
+		const uint64_t index = c2i_or_error(code_unique(encode_ostle(bb_player, bb_opponent, pos_hole)));
 		if (index == 0xFFFF'FFFF'FFFF'FFFFULL)return -2;//なぜかall_positions配列のなかにに入力盤面が存在しなかった
 
 		if (is_checkmate(bb_player, bb_opponent, pos_hole))return -3;//チェックメイト盤面である
@@ -2310,7 +2315,7 @@ uint64_t solve_8() {
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
 	e.print_statistics_of_results();
-	e.output_positions_and_win_lose_solutions("ostle_output");
+	e.output_positions_and_solutions("ostle_output");
 	std::cout << "LOG: [" << get_datetime_str() << "] finish: solve_8. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
@@ -2361,7 +2366,8 @@ int main(int argc, char *argv[]) {
 		e.do_enumerate();
 		e.retrograde_analysis();
 		e.print_statistics_of_results();
-		e.output_positions_and_win_lose_solutions("ostle_output");
+		e.answer_about_initial_position();
+		e.output_positions_and_solutions("ostle_output");
 
 		const uint64_t fingerprint = e.calc_final_result_hashvalue();
 		const auto s = std::chrono::system_clock::now();
