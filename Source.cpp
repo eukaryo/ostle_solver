@@ -72,7 +72,7 @@ void visualize_ostle(const uint64_t bb_player, const uint64_t bb_opponent, const
 			const uint64_t bb1 = 1ULL << (i * 8 + j);
 			if (bb_player & bb1)std::cout << "■";
 			else if (bb_opponent & bb1)std::cout << "□";
-			else if(pos_hole == i * 5 + j)std::cout << "◎";
+			else if (pos_hole == i * 5 + j)std::cout << "◎";
 			else std::cout << "＋";
 		}
 		switch (i) {
@@ -606,7 +606,7 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 		return do_move_table[index1_dir][index2_pos][index3_hole][index4_player][index5_opponent][2];
 	}
 	else {
-		
+
 		//縦方向に動かす手の場合
 
 		const int index1_dir = (move / 32) % 2;
@@ -1418,7 +1418,7 @@ private:
 		for (;; hash_length += hash_length >> 3) {
 
 			if (hash_length >= (1ULL << 32)) {
-				std::cout << "LOG: failed to construct hashtable."<< std::endl;
+				std::cout << "LOG: failed to construct hashtable." << std::endl;
 				std::exit(0);
 			}
 
@@ -1635,7 +1635,7 @@ private:
 				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
 				do_move(bb1, bb2, pos, next_moves[j]);
 				if (_mm_popcnt_u64(bb1) == 3)continue;
-				if (bb1 == bb_player && bb2 == bb_opponent && pos == pos_hole) {
+				if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
 					forbidden_index = j;
 					break;
 				}
@@ -1815,7 +1815,7 @@ public:
 
 		check_all_positions_if_checkmate();
 
-		for(int iteration = 1;; ++iteration) {
+		for (int iteration = 1;; ++iteration) {
 			std::cout << "LOG: start: iteration " << iteration << std::endl;
 			const auto t = std::chrono::system_clock::now();
 
@@ -2023,12 +2023,12 @@ uint64_t c2i(const uint64_t c, const std::vector<uint64_t> &table) {
 	return lower;
 }
 
-uint64_t c2i_levelwise (const uint64_t c, const std::vector<uint64_t> &table) {
+uint64_t c2i_levelwise(const uint64_t c, const std::vector<uint64_t> &table) {
 	//tableのどれかの値cを引数にとり、table[i]=cなるiを探して返す。
 	//tableが昇順にソートされてからlevelwiseに並べ替えられていると仮定して二分探索で求める。
 
 	uint64_t i = 0;
-	while(table[i] != c) {
+	while (table[i] != c) {
 		if (table[i] < c) {
 			i = i * 2 + 2;
 		}
@@ -2062,7 +2062,7 @@ template<bool LEVELWISE> void speedtest_c2i(const uint64_t size, const uint64_t 
 		shuffle_sorted_to_levelwise(test_table);
 	}
 
-	std::cout << "LOG: start: speedtest_c2i : " << (LEVELWISE ? "LEVELWISE" : "NOT LEVELWISE") <<std::endl;
+	std::cout << "LOG: start: speedtest_c2i : " << (LEVELWISE ? "LEVELWISE" : "NOT LEVELWISE") << std::endl;
 	const auto t = std::chrono::system_clock::now();
 
 	const uint64_t N = std::min(num_trial, size);
@@ -2135,7 +2135,7 @@ int main(int argc, char *argv[]) {
 		}
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " <<fingerprint << std::endl;
+		std::cout << "LOG: finish: analyze the all positions: elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
 
 		return 0;
 	}
