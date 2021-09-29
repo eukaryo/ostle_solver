@@ -1499,6 +1499,31 @@ private:
 		return lower;
 	}
 
+	void output_special_positions(const uint64_t zerocount) {
+
+		constexpr int BUFSIZE = 2 * 1024 * 1024;
+		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
+
+		std::ofstream writing_file;
+		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
+		writing_file.open("ostle_special_positions.txt", std::ios::out);
+
+		std::string numcode;
+		uint64_t count = 0;
+		for (uint64_t i = 0; i < all_positions.size(); ++i) {
+			if (is_nontrivial_node.get(i * 25) == false && is_checkmate_position.get(i) == false) {
+				++count;
+
+				encode_25numbers(all_positions[i], numcode);
+				writing_file << numcode << std::endl;
+			}
+		}
+
+		writing_file.close();
+
+		assert(count == zerocount);
+	}
+
 	uint64_t count_nontrivial_node_and_make_bitvector() {
 		//all_positionsには全盤面が格納されていると仮定する。
 		//全盤面と全禁じ手の有無との組み合わせによって想定される全局面のうち、
@@ -1596,6 +1621,10 @@ private:
 			const uint64_t numer = is_nontrivial_node.popcount() - (all_positions.size() - is_checkmate_position.popcount() - zerocount), denom = is_nontrivial_node.popcount();
 			std::cout << "result: number of non-trivial nodes with forbidden move = "
 				<< numer << " / " << denom << " (" << (100.0 * double(numer) / double(denom)) << " %)" << std::endl;
+
+			if (zerocount > 0) {
+				output_special_positions(zerocount);
+			}
 		}
 
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: count_nontrivial_node_and_make_bitvector" << std::endl;
