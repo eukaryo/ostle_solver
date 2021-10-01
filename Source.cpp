@@ -2290,7 +2290,7 @@ public:
 	void answer_about_initial_position() {
 		std::cout << "LOG: [" << get_datetime_str() << "] start: answer_about_initial_position" << std::endl;
 
-		const uint64_t bb_player = 0b11111'00000'00000'00000'00000ULL;
+		const uint64_t bb_player = 0b11111ULL << 32;
 		const uint64_t bb_opponent = 0b11111ULL;
 
 		visualize_ostle(bb_player, bb_opponent, 12);
