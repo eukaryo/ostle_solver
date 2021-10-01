@@ -285,7 +285,7 @@ def lookup_onefile(filename: str, query_code: int, forbidden_index: int) -> typi
             code_inside = code
             continue
         
-        assert len(row) == 2 or len(row) < forbidden_index + 1
+        assert len(row) == 2 or forbidden_index + 1 < len(row)
         if len(row) == 2:
             assert row[1] == "checkmate"
             return -1
@@ -339,15 +339,15 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
         (flag, result) = lookup_onefile(filenames[mid][1], present_code, forbidden_index)
         if flag:
             if result == -1:
-                print("result: checkmate. Player wins with a minimum of 1 move")
+                print("result: checkmate. Player wins in one move.")
             elif result == 0:
                 print("result: draw")
             else:
                 assert result > 0
                 if result % 2 == 0:
-                    print(f"result: player wins with a minimum of {result + 1} moves")
+                    print(f"result: player wins in {result + 1} moves.")
                 else:
-                    print(f"result: player loses with a maximum of {result + 1} moves")
+                    print(f"result: player loses in {result + 1} moves.")
             return
         else:
             if lo + 1 == hi:
