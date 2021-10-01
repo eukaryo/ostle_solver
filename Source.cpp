@@ -1568,6 +1568,8 @@ private:
 			generate_moves(bb_player, bb_opponent, pos_hole, moves);
 			assert(moves[0] <= 24);
 
+			uint64_t result[25] = {}, num_result = 0;
+
 			//盤面all_positions[i]から指し手moves[j]によって到達するノードは、到達可能なノードである。
 			for (uint8_t j = 1; j <= moves[0]; ++j) {
 
@@ -1595,9 +1597,13 @@ private:
 					}
 				}
 
+				result[num_result++] = next_index * 25ULL + forbidden_index;
+			}
+
 #pragma omp critical
-				{
-					is_nontrivial_node.set1(next_index * 25ULL + forbidden_index);
+			{
+				for (uint64_t j = 0; j < num_result; ++j) {
+					is_nontrivial_node.set1(result[j]);
 				}
 			}
 		}
