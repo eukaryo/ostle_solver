@@ -5,6 +5,8 @@ import pathlib
 import random
 import argparse
 
+verbose_flag = False
+
 def pdep(a: int, mask: int) -> int:
     dest = 0
     k = 0
@@ -114,7 +116,7 @@ def code_symmetry(s: int, code: int) -> int:
     return encode_ostle(bb1, bb2, pos)
 
 def code_unique(code: int) -> int:
-    return min([(code_symmetry(i, code), i) for i in range(8)])
+    return min([code_symmetry(i, code) for i in range(8)])
 
 def validate_code(code: int ) -> bool:
     if code is None:
@@ -270,15 +272,15 @@ def do_move(code: int, move: typing.Tuple[int, int]) -> int:
     return encode_ostle(bb_opponent, bb_player, pos_hole)
 
 def lookup_oneline(line: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
-    query_code = code_unique(query_code)[0]
+    query_code = code_unique(query_code)
     row = line.strip().split(",")
     code_found = decode_base64(row[0])
     if code_found is None:
         return None
     if code_found != query_code:
         return (False, code_found)
-    # else:
-    #     print("yay!")
+    elif verbose_flag:
+        print("LOG: present position is found!")
 
     assert len(row) == 2 or forbidden_index + 1 < len(row)
     if len(row) == 2:
@@ -291,7 +293,7 @@ def lookup_oneline(line: str, query_code: int, forbidden_index: int) -> typing.O
 
 def lookup_onefile_topline_only(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
     assert validate_code(query_code)
-    query_code = code_unique(query_code)[0]
+    query_code = code_unique(query_code)
     with open(filename, "r") as f:
         line = f.readline()
         if len(line) == 0:
@@ -308,7 +310,7 @@ def lookup_onefile_topline_only(filename: str, query_code: int, forbidden_index:
 
 # def lookup_onefile_all(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
 #     assert validate_code(query_code)
-#     query_code = code_unique(query_code)[0]
+#     query_code = code_unique(query_code)
 #     lines = None
 #     with open(filename, "r") as f:
 #         lines = f.readlines()
@@ -332,7 +334,7 @@ def lookup_onefile_topline_only(filename: str, query_code: int, forbidden_index:
 
 def lookup_onefile_binarysearch(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
     assert validate_code(query_code)
-    query_code = code_unique(query_code)[0]
+    query_code = code_unique(query_code)
     lines = None
     with open(filename, "r") as f:
         lines = f.readlines()
@@ -376,9 +378,9 @@ def determine_forbidden_index(present_code: int, previous_code: typing.Optional[
     assert validate_code(present_code)
     if previous_code is None:
         return 0
-    present_code = code_unique(present_code)[0]
+    present_code = code_unique(present_code)
     if validate_code(previous_code):
-        previous_code = code_unique(previous_code)[0]
+        previous_code = code_unique(previous_code)
 
     moves = generate_moves(present_code)
     for i in range(len(moves)):
@@ -389,7 +391,7 @@ def determine_forbidden_index(present_code: int, previous_code: typing.Optional[
             continue
         assert validate_code(next_code)
 
-        next_code = code_unique(next_code)[0]
+        next_code = code_unique(next_code)
         if next_code == previous_code:
             return i + 1
     return 0
@@ -415,13 +417,11 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
         previous_code = convert_25digits_to_code(previous_25digits)
     forbidden_index = determine_forbidden_index(present_code, previous_code)
 
-    # print(present_code)
-    # print(code_unique(present_code))
-    # print(encode_base64(code_unique(present_code)[0]))
-
-
-    # print(present_code)
-    # print(forbidden_index)
+    if verbose_flag:
+        print(f"present_code={present_code}")
+        print(f"code_unique(present_code)={code_unique(present_code)}")
+        print(f"encode_base64(code_unique(present_code))={encode_base64(code_unique(present_code))}")
+        print(f"forbidden_index={forbidden_index}")
 
     filenames = [str(x) for x in pathlib.Path(".").glob("*.txt")]
     filenames = [x for x in filenames if re.fullmatch(r"ostle_output[0-9]+\.txt", x) is not None]
@@ -434,9 +434,12 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
     lo, hi = 0, len(filenames)
     while True:
         mid = (lo + hi) // 2
-        # print(f"{lo},{hi},{mid}")
+        if verbose_flag:
+            print(f"LOG:(lo,hi,mid)=({lo},{hi},{mid})")
         assert lo + 1 < hi or mid == lo
         x = lookup_onefile_topline_only(filenames[mid][1], present_code, forbidden_index)
+        if verbose_flag:
+            print(f"LOG:x={x}")
         if x is None:
             print(f"error: search: {filenames[mid][1]} is invalid.")
         if x[0]:
@@ -445,14 +448,15 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
         else:
             if lo + 1 == hi:
                 break
-            if present_code < x[1]:
+            if code_unique(present_code) < x[1]:
                 hi = mid
             else:
                 lo = mid
-    # print(f"{lo},{hi}")
+    if verbose_flag:
+        print(f"LOG:(lo,hi)=({lo},{hi})")
     x = lookup_onefile_binarysearch(filenames[lo][1], present_code, forbidden_index)
     if x is None:
-        print(f"error: search: {filenames[mid][1]} is invalid.")
+        print(f"error: search: {filenames[lo][1]} is invalid.")
     elif x[0] is False:
         print(f"error: search: file-wise binarysearch is failed.")
     else:
@@ -514,12 +518,17 @@ def main():
     parser.add_argument("present", help="present position in the 25digits format")
     parser.add_argument("-p", "--previous", help="previous position in the 25digits format")
     parser.add_argument("-t", "--test", help="run unittests",action="store_true")
+    parser.add_argument("-v", "--verbose", help="increase output verbosity",action="store_true")
 
     args = parser.parse_args()
 
     if args.test:
         if unittests(12345,10000) is False:
             sys.exit(0)
+    
+    if args.verbose:
+        global verbose_flag
+        verbose_flag = True
     
     if validate_25digits_format(args.present) is False:
         print("error: input (present position) is invalid as the 25digits format")
