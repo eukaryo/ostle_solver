@@ -419,12 +419,9 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
     filenames = [(int(re.search(r"[0-9]+", x)[0]), x) for x in filenames]
     filenames.sort()
 
-    print(F"file num = {len(filenames)}")
-
     lo, hi = 0, len(filenames)
     while True:
         mid = (lo + hi) // 2
-        print(f"{lo},{hi},{mid}")
         assert lo + 1 < hi or mid == lo
         x = lookup_onefile_topline_only(filenames[mid][1], present_code, forbidden_index)
         if x is None:
@@ -439,7 +436,6 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
                 hi = mid
             else:
                 lo = mid
-    print(f"{lo},{hi}")
     x = lookup_onefile_binarysearch(filenames[lo][1], present_code, forbidden_index)
     if x is None:
         print(f"error: search: {filenames[mid][1]} is invalid.")
