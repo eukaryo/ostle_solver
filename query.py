@@ -114,7 +114,7 @@ def code_symmetry(s: int, code: int) -> int:
     return encode_ostle(bb1, bb2, pos)
 
 def code_unique(code: int) -> int:
-    return min([(code_symmetry(i, code), i) for i in range(1, 8)])
+    return min([(code_symmetry(i, code), i) for i in range(8)])
 
 def validate_code(code: int ) -> bool:
     if code is None:
@@ -268,30 +268,105 @@ def do_move(code: int, move: int) -> int:
     else:
         assert False
     return encode_ostle(bb_opponent, bb_player, pos_hole)
-        
-def lookup_onefile(filename: str, query_code: int, forbidden_index: int) -> typing.Tuple[bool, int]:
+
+def lookup_oneline(line: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
+    query_code = code_unique(query_code)[0]
+    row = line.strip().split(",")
+    code_found = decode_base64(row[0])
+    if code_found is None:
+        return None
+    if code_found != query_code:
+        return (False, code_found)
+
+    assert len(row) == 2 or forbidden_index + 1 < len(row)
+    if len(row) == 2:
+        assert row[1] == "checkmate"
+        return (True, -1)
+    assert len(row[forbidden_index + 1]) != 0
+    return (True, int(row[forbidden_index + 1]))
+
+def lookup_onefile_topline_only(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
     assert validate_code(query_code)
     query_code = code_unique(query_code)[0]
-    lines = []
+    with open(filename, "r") as f:
+        line = f.readline()
+        if len(line) == 0:
+            print(f"error: lookup_onefile_topline_only: {filename} does not contain any position.")
+            return None
+        
+        x = lookup_oneline(line, query_code, forbidden_index)
+        if x is None:
+            print(f"error: lookup_onefile_topline_only: the first line of {filename} is invalid.")
+        return x
+
+    print(f"error: lookup_onefile_topline_only: failed to lookup {filename}.")
+    return None
+
+# def lookup_onefile_all(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
+#     assert validate_code(query_code)
+#     query_code = code_unique(query_code)[0]
+#     lines = None
+#     with open(filename, "r") as f:
+#         lines = f.readlines()
+#     code_inside = None
+#     for line in lines:
+#         row = line.strip().split(",")
+#         code = decode_base64(row[0])
+#         if code is None:
+#             continue
+#         if code != query_code:
+#             code_inside = code
+#             continue
+        
+#         assert len(row) == 2 or forbidden_index + 1 < len(row)
+#         if len(row) == 2:
+#             assert row[1] == "checkmate"
+#             return (True, -1)
+#         assert len(row[forbidden_index + 1]) != 0
+#         return (True, int(row[forbidden_index + 1]))
+#     return (False, code_inside)
+
+def lookup_onefile_binarysearch(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
+    assert validate_code(query_code)
+    query_code = code_unique(query_code)[0]
+    lines = None
     with open(filename, "r") as f:
         lines = f.readlines()
-    code_inside = None
-    for line in lines:
-        row = line.split(",")
-        code = decode_base64(row[0])
-        if code is None:
-            continue
-        if code != query_code:
-            code_inside = code
-            continue
-        
-        assert len(row) == 2 or forbidden_index + 1 < len(row)
-        if len(row) == 2:
-            assert row[1] == "checkmate"
-            return -1
-        assert len(row[forbidden_index + 1]) != 0
-        return (True, int(row[forbidden_index + 1]))
-    return (False, code_inside)
+
+    x = lookup_oneline(lines[0], query_code, forbidden_index)
+    if x is None:
+        print(f"error: lookup_onefile_binarysearch: the first line of {filename} is invalid.")
+    if x[0]:
+        return x
+    if query_code < x[1]:
+        return x
+    
+    x = lookup_oneline(lines[-1], query_code, forbidden_index)
+    if x is None:
+        print(f"error: lookup_onefile_binarysearch: the last line of {filename} is invalid.")
+    if x[0]:
+        return x
+    if x[1] < query_code:
+        return x
+    
+    lo, hi = 0, len(lines)
+    while True:
+        mid = (lo + hi) // 2
+        assert lo + 1 < hi or mid == lo
+        x = lookup_oneline(lines[mid], query_code, forbidden_index)
+        if x is None:
+            print(f"error: lookup_onefile_binarysearch: the {mid+1}-th line of {filename} is invalid.")
+        if x[0]:
+            return x
+        else:
+            if lo + 1 == hi:
+                print("error: lookup_onefile_binarysearch: binarysearch is failed.")
+                return None
+            if query_code < x[1]:
+                hi = mid
+            else:
+                lo = mid
+
 
 def determine_forbidden_index(present_code: int, previous_code: typing.Optional[int] = None) -> int:
     assert validate_code(present_code)
@@ -315,6 +390,18 @@ def determine_forbidden_index(present_code: int, previous_code: typing.Optional[
             return i + 1
     return 0
 
+def print_result(x: int):
+    if x == -1:
+        print("result: checkmate. Player wins in one move.")
+    elif x == 0:
+        print("result: draw")
+    else:
+        assert x > 0
+        if x % 2 == 0:
+            print(f"result: player wins in {x + 1} moves.")
+        else:
+            print(f"result: player loses in {x + 1} moves.")
+
 def search(present_25digits: str, previous_25digits: typing.Optional[int] = None) -> typing.NoReturn:
     assert validate_25digits_format(present_25digits)
     present_code = convert_25digits_to_code(present_25digits)
@@ -332,31 +419,34 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
     filenames = [(int(re.search(r"[0-9]+", x)[0]), x) for x in filenames]
     filenames.sort()
 
+    print(F"file num = {len(filenames)}")
+
     lo, hi = 0, len(filenames)
     while True:
         mid = (lo + hi) // 2
+        print(f"{lo},{hi},{mid}")
         assert lo + 1 < hi or mid == lo
-        (flag, result) = lookup_onefile(filenames[mid][1], present_code, forbidden_index)
-        if flag:
-            if result == -1:
-                print("result: checkmate. Player wins in one move.")
-            elif result == 0:
-                print("result: draw")
-            else:
-                assert result > 0
-                if result % 2 == 0:
-                    print(f"result: player wins in {result + 1} moves.")
-                else:
-                    print(f"result: player loses in {result + 1} moves.")
+        x = lookup_onefile_topline_only(filenames[mid][1], present_code, forbidden_index)
+        if x is None:
+            print(f"error: search: {filenames[mid][1]} is invalid.")
+        if x[0]:
+            print_result(x[1])
             return
         else:
             if lo + 1 == hi:
-                print("error: query position is not found in the database.")
-                return
-            if present_code < result:
+                break
+            if present_code < x[1]:
                 hi = mid
             else:
                 lo = mid
+    print(f"{lo},{hi}")
+    x = lookup_onefile_binarysearch(filenames[lo][1], present_code, forbidden_index)
+    if x is None:
+        print(f"error: search: {filenames[mid][1]} is invalid.")
+    elif x[0] is False:
+        print(f"error: search: file-wise binarysearch is failed.")
+    else:
+        print_result(x[1])
 
 def make_random_position_code(seed):
     state = random.getstate()
@@ -419,15 +509,15 @@ def main():
 
     if args.test:
         if unittests(12345,10000) is False:
-            sys.exit(1)
+            sys.exit(0)
     
     if validate_25digits_format(args.present) is False:
         print("error: input (present position) is invalid as the 25digits format")
-        sys.exit(1)
+        sys.exit(0)
     if args.previous is not None:
         if validate_25digits_format(args.previous) is False:
             print("error: input (present position) is invalid as the 25digits format")
-            sys.exit(1)
+            sys.exit(0)
         search(args.present, args.previous)
     else:
         search(args.present)
