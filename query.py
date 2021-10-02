@@ -180,7 +180,7 @@ def generate_moves(code: int) -> typing.List[typing.Tuple[int, int]]:
     while b > 0:
         x = bitscan_forward(b)
         assert x is not None
-        answer += [(b,POS_DIFF[i]) for i in range(4)]
+        answer += [(x,POS_DIFF[i]) for i in range(4)]
         b &= b - 1
 
     bb_empty = BB_ALL_8X8_5X5 ^ (bb_player | bb_opponent)
@@ -217,7 +217,7 @@ def do_move_oneline(situation: list, move: typing.Tuple[int, int]) -> typing.Lis
 
     return situation
 
-def do_move(code: int, move: int) -> int:
+def do_move(code: int, move: typing.Tuple[int, int]) -> int:
     bb_player, bb_opponent, pos_hole = list(decode_ostle(code))
     move_pos, move_diff = move
 
@@ -237,7 +237,7 @@ def do_move(code: int, move: int) -> int:
                 situation.append("HOLE")
             else:
                 situation.append("EMPTY")
-        next_situation = do_move_oneline(situation, x_pos, move_diff)
+        next_situation = do_move_oneline(situation, (x_pos, move_diff))
         bb_mask = BB_ALL_8X8_5X5 ^ (0b11111 << (y_pos * 8))
         bb_player &= bb_mask
         bb_opponent &= bb_mask
@@ -256,7 +256,7 @@ def do_move(code: int, move: int) -> int:
                 situation.append("HOLE")
             else:
                 situation.append("EMPTY")
-        next_situation = do_move_oneline(situation, x_pos, move_diff // 5)
+        next_situation = do_move_oneline(situation, (y_pos, move_diff // 5))
         bb_mask = BB_ALL_8X8_5X5 ^ ((1 + (1 << 8) + (1 << 16) + (1 << 24) + (1 << 32)) << x_pos)
         bb_player &= bb_mask
         bb_opponent &= bb_mask
@@ -277,12 +277,16 @@ def lookup_oneline(line: str, query_code: int, forbidden_index: int) -> typing.O
         return None
     if code_found != query_code:
         return (False, code_found)
+    # else:
+    #     print("yay!")
 
     assert len(row) == 2 or forbidden_index + 1 < len(row)
     if len(row) == 2:
         assert row[1] == "checkmate"
         return (True, -1)
-    assert len(row[forbidden_index + 1]) != 0
+    if len(row[forbidden_index + 1]) == 0:
+        print("error: lookup_oneline: forbidden_index is invalid in the position query_code.")
+        sys.exit(0)
     return (True, int(row[forbidden_index + 1]))
 
 def lookup_onefile_topline_only(filename: str, query_code: int, forbidden_index: int) -> typing.Optional[typing.Tuple[bool, int]]:
@@ -411,6 +415,14 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
         previous_code = convert_25digits_to_code(previous_25digits)
     forbidden_index = determine_forbidden_index(present_code, previous_code)
 
+    # print(present_code)
+    # print(code_unique(present_code))
+    # print(encode_base64(code_unique(present_code)[0]))
+
+
+    # print(present_code)
+    # print(forbidden_index)
+
     filenames = [str(x) for x in pathlib.Path(".").glob("*.txt")]
     filenames = [x for x in filenames if re.fullmatch(r"ostle_output[0-9]+\.txt", x) is not None]
     if len(filenames) == 0:
@@ -422,6 +434,7 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
     lo, hi = 0, len(filenames)
     while True:
         mid = (lo + hi) // 2
+        # print(f"{lo},{hi},{mid}")
         assert lo + 1 < hi or mid == lo
         x = lookup_onefile_topline_only(filenames[mid][1], present_code, forbidden_index)
         if x is None:
@@ -436,6 +449,7 @@ def search(present_25digits: str, previous_25digits: typing.Optional[int] = None
                 hi = mid
             else:
                 lo = mid
+    # print(f"{lo},{hi}")
     x = lookup_onefile_binarysearch(filenames[lo][1], present_code, forbidden_index)
     if x is None:
         print(f"error: search: {filenames[mid][1]} is invalid.")
@@ -471,10 +485,10 @@ def unittests(seed, num_iter: int) -> bool:
             print(f"unittests: {i} / {num_iter}") 
         x = make_random_position_code(random.randrange(2 ** 55))
         assert(validate_code(x))
-        for j in range(1, 8):
+        for j in [1,2,4]:
             s = code_symmetry(j, x)
             assert(validate_code(s))
-            t = code_symmetry(j, x)
+            t = code_symmetry(j, s)
             assert x == t
         y1 = encode_base64(x)
         z1 = decode_base64(y1)
