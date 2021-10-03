@@ -145,7 +145,9 @@ def validate_code(code: int ) -> bool:
     return True
 
 def validate_25digits_format(src: str) -> bool:
-    if re.fullmatch(r"[0123]{25}", src) is None:
+    if re.fullmatch(r"[-0123]+", src) is None:
+        return False
+    if re.fullmatch(r"[0123]{25}", src.replace("-", "")) is None:
         return False
     if src.count("3") != 1:
         return False
@@ -159,6 +161,7 @@ def convert_25digits_to_code(src: str) -> typing.Optional[int]:
     if validate_25digits_format(src) is False:
         print("error: convert_25digits_to_code: invalid position")
         return None
+    src = src.replace("-", "")
     bb_player, bb_opponent, pos_hole = 0, 0, 0
     for i in range(5):
         for j in range(5):
