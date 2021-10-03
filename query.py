@@ -172,6 +172,25 @@ def convert_25digits_to_code(src: str) -> typing.Optional[int]:
     assert validate_code(answer)
     return answer
 
+def convert_code_to_25digits(src: int) -> typing.Optional[str]:
+    if validate_code(src) is False:
+        print("error: convert_code_to_25digits: invalid position")
+        return None
+    bb_player, bb_opponent, pos_hole = decode_ostle(src)
+    answer = ""
+    for i in range(5):
+        for j in range(5):
+            if (bb_player & (1 << (i * 8 + j))) != 0:
+                answer += "1"
+            elif (bb_opponent & (1 << (i * 8 + j))) != 0:
+                answer += "2"
+            elif pos_hole == (i * 5 + j):
+                answer += "3"
+            else:
+                answer += "0"
+    assert validate_25digits_format(answer)
+    return answer
+
 POS_DIFF = (-5,5,-1,1)
 
 def generate_moves(code: int) -> typing.List[typing.Tuple[int, int]]:
@@ -509,6 +528,14 @@ def unittests(seed, num_iter: int) -> bool:
             print((bb1, bb2, pos))
             print(z2)
             print("test failed: decode_ostle or encode_ostle")
+            return False
+        y3 = convert_code_to_25digits(x)
+        z3 = convert_25digits_to_code(y3)
+        if x != z3:
+            print(x)
+            print(y3)
+            print(z3)
+            print("test failed: convert_code_to_25digits or convert_25digits_to_code")
             return False
     print("unittests: clear!")
     return True
