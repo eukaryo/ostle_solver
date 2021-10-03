@@ -1568,6 +1568,7 @@ private:
 			generate_moves(bb_player, bb_opponent, pos_hole, moves);
 			assert(moves[0] <= 24);
 
+			//結果を書き出しておくための配列。これによってクリティカルセクションに出入りする頻度を減らす。
 			uint64_t result[25] = {}, num_result = 0;
 
 			//盤面all_positions[i]から指し手moves[j]によって到達するノードは、到達可能なノードである。
@@ -2330,7 +2331,7 @@ public:
 		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
 			++histogram[all_nontrivial_solutions[i]];
 		}
-		std::cout << "result: number of nontrivial positions of which distance to endgame is:" << std::endl;
+		std::cout << "result: number of nontrivial nodes of which distance to endgame is:" << std::endl;
 		for (uint64_t i = 0; i < histogram.size(); ++i) {
 			std::cout << "result: " << i << " : " << histogram[i] << std::endl;
 		}
