@@ -1342,6 +1342,18 @@ public:
 		return population;
 	}
 
+	uint64_t rank1_naive(const uint64_t index) {
+		//bitsの範囲[0,index)のなかで立っているビットの数を返す。
+
+		assert(index < bits.size() * 64);
+
+		uint64_t answer = 0;
+		for (uint64_t i = 63; i < index; i += 64) {
+			answer += _mm_popcnt_u64(bits[i / 64]);
+		}
+		answer += _mm_popcnt_u64(bits[index / 64] & ((1ULL << (index % 64)) - 1));
+		return answer;
+	}
 };
 
 class BitVector_nodes : public BitVector {
@@ -1388,6 +1400,8 @@ public:
 				large_pop += _mm_popcnt_u64(bits[i + j]);
 			}
 		}
+		large_block[large_block.size() - 1] = large_pop;
+		assert(large_pop == popcount());
 
 		//small_blockは、64bitごとに局所的な(=65536bit幅のブロックの内側での)rank情報を持っておく。
 		//値は[0,65472]の範囲内(65472 == 65536 - 64)なので16bitで収まる。
@@ -1410,19 +1424,6 @@ public:
 		assert(index < bits.size() * 64);
 
 		return large_block[index / 65536] + small_block[index / 64] + _mm_popcnt_u64(bits[index / 64] & ((1ULL << (index % 64)) - 1));
-	}
-
-	uint64_t rank1_naive(const uint64_t index) {
-		//bitsの範囲[0,index)のなかで立っているビットの数を返す。
-
-		assert(index < bits.size() * 64);
-
-		uint64_t answer = 0;
-		for (uint64_t i = 63; i < index; i += 64) {
-			answer += _mm_popcnt_u64(bits[i / 64]);
-		}
-		answer += _mm_popcnt_u64(bits[index / 64] & ((1ULL << (index % 64)) - 1));
-		return answer;
 	}
 };
 
