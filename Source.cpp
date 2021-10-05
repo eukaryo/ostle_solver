@@ -2585,6 +2585,7 @@ int main(int argc, char *argv[]) {
 				input["parallel"] = std::to_string(par);
 			}
 			else if (args[i] == "-1") {
+				operand = "";
 				input["parallel"] = "-1";
 			}
 			else {
@@ -2621,8 +2622,11 @@ int main(int argc, char *argv[]) {
 		if (1 <= par && par < omp_get_max_threads()) {
 			omp_set_num_threads(par);
 		}
+		else if (par == -1) {
+			std::cout << "notice: input == -1 : all CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+		}
 		else {
-			std::cout << "warning: parallelism setting is ignored. input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+			std::cout << "warning: parallelism setting is ignored. (all CPU cores are used) input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 		}
 	}
 
