@@ -2563,7 +2563,7 @@ int main(int argc, char *argv[]) {
 			else if (args[i] == "-t" || args[i] == "--test") {
 				input["test"] = "true";
 			}
-			else if (args[i] == "-b" || args[i] == "bfs") {
+			else if (args[i] == "-b" || args[i] == "--bfs") {
 				input["bfs"] = "true";
 			}
 			else if (args[i] == "-p" || args[i] == "--parallel") {
