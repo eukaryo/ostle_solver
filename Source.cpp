@@ -2538,18 +2538,11 @@ void unittests() {
 
 int main(int argc, char *argv[]) {
 
+	//note:
 	//uint64_tがなにかのエイリアスであることは規定されているが、unsigned long longのエイリアスであるとは限らない。
 	//処理系によってはlongが64bitでuint64_tがunsigned longのエイリアスであることもある。（言語仕様で許容されている）
 	//整数リテラルの末尾にULLを付けるとunsigned long long型であることが明示される。uint64_tではなくunsigned long longになることが問題である。
 	//例えばstd::max関数は2つの引数が同じ型でなければならないのだが、uint64_tとunsigned long longを入れたときにコンパイルエラーになる可能性が処理系によってありうる。
-	//以下のstatic_assertは、そういう処理系を検知してコンパイルエラーにする。
-
-	//static_assert(std::is_same<uint64_t, unsigned long long>::value);
-	//static_assert(std::is_same<int64_t, long long>::value);
-	//static_assert(std::is_same<uint32_t, unsigned int>::value);
-	//static_assert(std::is_same<int32_t, int>::value);
-	//static_assert(std::is_same<uint64_t, size_t>::value);
-
 
 #ifdef _MSC_VER
 	SetPriorityClass(GetCurrentProcess(), IDLE_PRIORITY_CLASS);
@@ -2557,7 +2550,7 @@ int main(int argc, char *argv[]) {
 
 	std::vector<std::string>args;
 	for (int i = 1; i < argc; ++i) {
-		args.push_back(argv[1]);
+		args.push_back(argv[i]);
 	}
 
 	std::map<std::string, std::string>input;
@@ -2600,9 +2593,9 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (operand == "startpiece") {
-			if (args[i] == "8" || args[i] == "9" || args[i] == "10") {
+			if (args[i] == std::string("8") || args[i] == std::string("9") || args[i] == std::string("10")) {
 				operand = "";
-				input["parallel"] = args[i];
+				input["startpiece"] = args[i];
 			}
 			else {
 				std::cout << "error: command line argument is invalid. error_code = 3 (cf. main function of the source code)" << std::endl;
@@ -2647,6 +2640,7 @@ int main(int argc, char *argv[]) {
 		solve_8();
 		solve_8_bfs();
 		std::cout << "LOG: [" << get_datetime_str() << "] finish" << std::endl;
+		return 0;
 	}
 
 	if (input.find("test") != input.end()) {
