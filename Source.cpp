@@ -1534,7 +1534,7 @@ protected:
 		assert(count == zerocount);
 	}
 
-	uint64_t count_nontrivial_node_and_make_bitvector(const bool is_checkmate_trivial = true) {
+	uint64_t count_nontrivial_node_and_make_bitvector(const bool is_checkmate_trivial) {
 		//all_positionsには全盤面が格納されていると仮定する。
 		//全盤面と全禁じ手の有無との組み合わせによって想定される全局面のうち、
 		//自明でない（＝他の盤面から合法手によって到達可能であり、対局が続いており、かつチェックメイト盤面ではない）局面の数を求めて返す。
@@ -1711,17 +1711,24 @@ public:
 			max_num = std::max(max_num, uint64_t(all_nontrivial_solutions[i]));
 		}
 		std::vector<uint64_t>histogram(max_num + 1, 0);
+		uint64_t num_unreachable = 0;
 		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
-			++histogram[all_nontrivial_solutions[i]];
+			if (all_nontrivial_solutions[i] == -1) {
+				++num_unreachable;
+			}
+			else {
+				++histogram[all_nontrivial_solutions[i]];
+			}
 		}
 		std::cout << "result: number of nontrivial nodes of which distance to endgame is:" << std::endl;
+		std::cout << "result:  -1 : " << num_unreachable << std::endl;
 		for (uint64_t i = 0; i < histogram.size(); ++i) {
 			std::cout << "result: " << i << " : " << histogram[i] << std::endl;
 		}
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: print_statistics_of_results" << std::endl;
 	}
 
-	void output_positions_and_solutions(const std::string filename) {
+	void output_positions_and_solutions(const std::string filename, bool is_checkmate_trivial) {
 
 		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_solutions" << std::endl;
 
@@ -1746,11 +1753,11 @@ public:
 
 			encode_base64(all_positions[i], text);
 			const uint64_t bb = is_nontrivial_node.get_bb_position(i);
+
 			if (is_checkmate_position.get(i)) {
-				assert(bb == 0);
 				text += ",checkmate";
 			}
-			else {
+			if ((!is_checkmate_trivial) || (!is_checkmate_position.get(i))) {
 				for (uint64_t j = 0; j < 25; ++j) {
 					text += ",";
 					if (bb & (1ULL << j)) {
@@ -2164,7 +2171,7 @@ public:
 
 		std::cout << "LOG: [" << get_datetime_str() << "] start: retrograde_analysis" << std::endl;
 
-		count_nontrivial_node_and_make_bitvector();
+		count_nontrivial_node_and_make_bitvector(true);
 
 		all_nontrivial_solutions.clear();
 		all_nontrivial_solutions.resize(is_nontrivial_node.popcount());
@@ -2265,9 +2272,6 @@ public:
 
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: answer_about_initial_position" << std::endl;
 	}
-
-
-
 };
 
 class OstleBreadthFirstSearcher : public OstleEnumerator {
@@ -2403,99 +2407,6 @@ public:
 
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: bfs" << std::endl;
 	}
-
-	uint64_t calc_final_result_hashvalue() {
-		//全盤面とその解析結果の組に関するハッシュ値を生成して返す。
-
-		Encoder_AES encoder(123456);
-
-		__m128i answer = _mm_setzero_si128();
-
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			const __m128i x = encoder.aes128_enc(all_positions[i], i);
-			answer = _mm_xor_si128(x, answer);//xorは可換
-		}
-
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			const __m128i x = encoder.aes128_enc(is_nontrivial_node.get_bb_position(i), i);
-			answer = _mm_xor_si128(x, answer);//xorは可換
-		}
-
-		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
-			const __m128i x = encoder.aes128_enc(all_nontrivial_solutions[i], i);
-			answer = _mm_xor_si128(x, answer);//xorは可換
-		}
-
-		uint64_t a[2];
-		_mm_storeu_si128((__m128i*)a, answer);
-		return a[0] ^ a[1];
-	}
-
-	void print_statistics_of_results() {
-		std::cout << "LOG: [" << get_datetime_str() << "] start: print_statistics_of_results" << std::endl;
-		uint64_t max_num = 0;
-		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
-			max_num = std::max(max_num, uint64_t(all_nontrivial_solutions[i]));
-		}
-		std::vector<uint64_t>histogram(max_num + 1, 0);
-		for (uint64_t i = 0; i < all_nontrivial_solutions.size(); ++i) {
-			++histogram[all_nontrivial_solutions[i]];
-		}
-		std::cout << "result: number of nontrivial nodes of which distance to endgame is:" << std::endl;
-		for (uint64_t i = 0; i < histogram.size(); ++i) {
-			std::cout << "result: " << i << " : " << histogram[i] << std::endl;
-		}
-		std::cout << "LOG: [" << get_datetime_str() << "] finish: print_statistics_of_results" << std::endl;
-	}
-
-	void output_positions_and_solutions(const std::string filename) {
-
-		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_solutions" << std::endl;
-
-		constexpr int BUFSIZE = 2 * 1024 * 1024;
-		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
-
-		std::ofstream writing_file;
-		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
-		uint64_t count = 0;
-		std::string text;
-		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
-		const std::string SERIAL_TRIVIAL_CODE = "-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-		uint64_t node_index = 0;
-		for (uint64_t i = 0; i < all_positions.size(); ++i) {
-			if (count % SINGLE_FILE_LIMIT == 0) {
-				if (count) {
-					writing_file.close();
-				}
-				writing_file.open(filename + my_itos(count / SINGLE_FILE_LIMIT, 4, '0') + std::string(".txt"), std::ios::out);
-			}
-
-			encode_base64(all_positions[i], text);
-			const uint64_t bb = is_nontrivial_node.get_bb_position(i);
-
-			if (is_checkmate_position.get(i)) {
-				text += ",checkmate";
-			}
-			for (uint64_t j = 0; j < 25; ++j) {
-				text += ",";
-				if (bb & (1ULL << j)) {
-					text += std::to_string(all_nontrivial_solutions[node_index++]);
-				}
-			}
-
-			writing_file << text << std::endl;
-			++count;
-		}
-		if (all_positions.size()) {
-			writing_file.close();
-		}
-
-		std::cout << "LOG: [" << get_datetime_str() << "] finish: output_positions_and_solutions" << std::endl;
-
-	}
-
-
 };
 
 uint64_t solve_8() {
@@ -2504,7 +2415,7 @@ uint64_t solve_8() {
 	e.retrograde_analysis();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
 	e.print_statistics_of_results();
-	e.output_positions_and_solutions("ostle_output");
+	e.output_positions_and_solutions("ostle_output", true);
 	std::cout << "LOG: [" << get_datetime_str() << "] finish: solve_8. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
@@ -2516,7 +2427,7 @@ uint64_t solve_8_bfs() {
 	e.bfs();
 	const uint64_t fingerprint = e.calc_final_result_hashvalue();
 	e.print_statistics_of_results();
-	e.output_positions_and_solutions("ostle_8_distance");
+	e.output_positions_and_solutions("ostle_8_distance", false);
 	std::cout << "LOG: [" << get_datetime_str() << "] finish: solve_8_bfs. fingerprint = " << fingerprint << std::endl;
 	return fingerprint;
 }
@@ -2524,14 +2435,11 @@ uint64_t solve_8_bfs() {
 
 
 void unittests() {
-
 	test_move(12345, 100000);
 	test_checkmate_detector_func(12345, 100000);
 	test_bitboard_symmetry(12345, 100000);
 	test_base64_func(12345, 100000);
 	test_bit_vector(12345, 100000);
-
-	std::cout << "test clear!" << std::endl;
 }
 
 
@@ -2648,7 +2556,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (input.find("test") != input.end()) {
+		std::cout << "LOG: [" << get_datetime_str() << "] start: unittests" << std::endl;
 		unittests();
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: unittests" << std::endl;
 	}
 
 	if (input.find("retrograde") != input.end()) {
@@ -2659,28 +2569,27 @@ int main(int argc, char *argv[]) {
 		e.retrograde_analysis();
 		e.print_statistics_of_results();
 		e.answer_about_initial_position();
-		e.output_positions_and_solutions("ostle_" + std::to_string(start_piece) + "_retrograde_output");
+		e.output_positions_and_solutions("ostle_" + std::to_string(start_piece) + "_retrograde_output", true);
 
 		const uint64_t fingerprint = e.calc_final_result_hashvalue();
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: [" << get_datetime_str() << "] finish: retrograde analysis: start_piece = " << start_piece << ", elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: retrograde analysis: start_piece = " << start_piece << ", elapsed time = " << elapsed << " ms, fingerprint = " << fingerprint << std::endl;
 	}
 
 	if (input.find("bfs") != input.end()) {
 		std::cout << "LOG: [" << get_datetime_str() << "] start: breadth-first search from the initial node: start_piece = " << start_piece << std::endl;
 		const auto t = std::chrono::system_clock::now();
 
-		OstleRetrogradeAnalyzer e(start_piece);
-		e.retrograde_analysis();
+		OstleBreadthFirstSearcher e(start_piece);
+		e.bfs();
 		e.print_statistics_of_results();
-		e.answer_about_initial_position();
-		e.output_positions_and_solutions("ostle_" + std::to_string(start_piece) + "_bfs_output");
+		e.output_positions_and_solutions("ostle_" + std::to_string(start_piece) + "_bfs_output", false);
 
 		const uint64_t fingerprint = e.calc_final_result_hashvalue();
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
-		std::cout << "LOG: [" << get_datetime_str() << "] finish: breadth-first search from the initial node: start_piece = " << start_piece << ", elapsed time = " << elapsed << ", fingerprint = " << fingerprint << std::endl;
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: breadth-first search from the initial node: start_piece = " << start_piece << ", elapsed time = " << elapsed << " ms, fingerprint = " << fingerprint << std::endl;
 	}
 
 	return 0;
