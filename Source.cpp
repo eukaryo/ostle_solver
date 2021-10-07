@@ -2486,7 +2486,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else if (operand == "parallel") {
-			if (std::regex_match(args[i], std::regex(R"(0*[1-9][0-9]{,5})"))) {
+			if (std::regex_match(args[i], std::regex(R"(0*[1-9][0-9]{0,5})"))) {
 				operand = "";
 				const int par = std::stoi(args[i]);
 				assert(1 <= par && par <= 10000000);
