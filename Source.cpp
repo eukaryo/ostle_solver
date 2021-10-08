@@ -282,7 +282,7 @@ uint64_t code_unique_naive(const uint64_t code) {
 	return answer;
 }
 
-uint64_t code_unique(const uint64_t code) {
+uint64_t code_unique_slow(const uint64_t code) {
 	//encode_ostleで圧縮された値codeを、対称な盤面に変化させてもよいとしたとき、
 	//変換後のcodeを整数として見たときの値が最も小さくなるような変換がどれか調べて、それを作用させた結果のcodeを返す。
 	//これは対称な局面を同一視する操作そのものである。
@@ -295,6 +295,99 @@ uint64_t code_unique(const uint64_t code) {
 	}
 
 	return answer;
+}
+
+uint64_t code_unique(const uint64_t code) {
+
+	constexpr auto X2 = [](const uint64_t x) {return (x | (x << 25)) << 5; };
+
+	constexpr uint64_t mask_1_lo_vertical = 0b00000'00000'11111'00000'11111ULL;
+	constexpr uint64_t mask_1_hi_vertical = 0b00000'11111'00000'11111'00000ULL;
+	constexpr uint64_t mask_2_lo_vertical = 0b00000'00000'00000'11111'11111ULL;
+	constexpr uint64_t mask_2_hi_vertical = 0b00000'11111'11111'00000'00000ULL;
+	constexpr uint64_t mask_3_lo_vertical = 0b00000'00000'00000'00000'11111ULL;
+	constexpr uint64_t mask_3_hi_vertical = 0b11111'11111'11111'11111'00000ULL;
+
+	uint64_t b = code, r;
+	r = ((b >> 5) & X2(mask_1_lo_vertical)) | ((b << 5) & X2(mask_1_hi_vertical));
+	r = ((r >> 10) & X2(mask_2_lo_vertical)) | ((r << 10) & X2(mask_2_hi_vertical));
+	r = ((b >> 20) & X2(mask_3_lo_vertical)) | ((r << 5) & X2(mask_3_hi_vertical));
+
+	constexpr uint64_t mask_1_lo_horizontal = 0b00101'00101'00101'00101'00101ULL;
+	constexpr uint64_t mask_1_hi_horizontal = 0b01010'01010'01010'01010'01010ULL;
+	constexpr uint64_t mask_2_lo_horizontal = 0b00011'00011'00011'00011'00011ULL;
+	constexpr uint64_t mask_2_hi_horizontal = 0b01100'01100'01100'01100'01100ULL;
+	constexpr uint64_t mask_3_lo_horizontal = 0b00001'00001'00001'00001'00001ULL;
+	constexpr uint64_t mask_3_hi_horizontal = 0b11110'11110'11110'11110'11110ULL;
+
+	constexpr int64_t FULL = ((1LL << 50) - 1LL) << 5;
+
+	const __m256i X2_mask_1_lo_horizontal = _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_1_lo_horizontal)), int64_t(X2(mask_1_lo_horizontal)));
+
+	__m256i bb0 = _mm256_set_epi64x(int64_t(code), int64_t(r), int64_t(code), int64_t(r));
+
+	const __m256i tt1lo = _mm256_and_si256(_mm256_srlv_epi64(bb0, _mm256_set_epi64x(0, 0, 1, 1)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_1_lo_horizontal)), int64_t(X2(mask_1_lo_horizontal))));
+	const __m256i tt1hi = _mm256_and_si256(_mm256_sllv_epi64(bb0, _mm256_set_epi64x(0, 0, 1, 1)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_1_hi_horizontal)), int64_t(X2(mask_1_hi_horizontal))));
+	const __m256i tt1 = _mm256_or_si256(tt1lo, tt1hi);
+
+	const __m256i tt2lo = _mm256_and_si256(_mm256_srlv_epi64(tt1, _mm256_set_epi64x(0, 0, 2, 2)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_2_lo_horizontal)), int64_t(X2(mask_2_lo_horizontal))));
+	const __m256i tt2hi = _mm256_and_si256(_mm256_sllv_epi64(tt1, _mm256_set_epi64x(0, 0, 2, 2)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_2_hi_horizontal)), int64_t(X2(mask_2_hi_horizontal))));
+	const __m256i tt2 = _mm256_or_si256(tt2lo, tt2hi);
+
+	const __m256i tt3lo = _mm256_and_si256(_mm256_srlv_epi64(bb0, _mm256_set_epi64x(0, 0, 4, 4)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_3_lo_horizontal)), int64_t(X2(mask_3_lo_horizontal))));
+	const __m256i tt3hi = _mm256_and_si256(_mm256_sllv_epi64(tt2, _mm256_set_epi64x(0, 0, 1, 1)), _mm256_set_epi64x(FULL, FULL, int64_t(X2(mask_3_hi_horizontal)), int64_t(X2(mask_3_hi_horizontal))));
+	const __m256i tt3 = _mm256_or_si256(tt3lo, tt3hi);
+
+	const int64_t pos0 = int64_t(b % 32);
+	const int64_t pos1 = int64_t(vertical_mirror_5x5_table[b % 32]);
+	const int64_t pos2 = int64_t(horizontal_mirror_5x5_table[b % 32]);
+	const int64_t pos3 = int64_t(horizontal_mirror_5x5_table[vertical_mirror_5x5_table[b % 32]]);
+
+	const __m256i tt = _mm256_or_si256(tt3, _mm256_set_epi64x(pos0, pos1, pos2, pos3));
+
+	constexpr uint64_t mask_1_transpose = 0b00000'10100'00010'10000'01010ULL;
+	constexpr uint64_t mask_2_transpose = 0b00000'00000'11000'11100'01100ULL;
+	constexpr uint64_t mask_3_transpose = 0b00000'00000'00000'00000'10000ULL;
+
+	constexpr uint64_t mask_c_transpose = 0b11110'11111'11111'11111'01111ULL;
+	constexpr uint64_t mask_d_transpose = 0b00001'00000'00000'00000'10000ULL;
+
+	__m256i t, s;
+	__m256i c = _mm256_and_si256(tt, _mm256_set1_epi64x(int64_t(X2(mask_c_transpose))));
+	__m256i d = _mm256_and_si256(tt, _mm256_set1_epi64x(int64_t(X2(mask_d_transpose))));
+
+	t = _mm256_and_si256(_mm256_xor_si256(c, _mm256_srli_epi64(c, 4)), _mm256_set1_epi64x(int64_t(X2(mask_1_transpose))));
+	c = _mm256_xor_si256(_mm256_xor_si256(c, t), _mm256_slli_epi64(t, 4));
+	t = _mm256_and_si256(_mm256_xor_si256(c, _mm256_srli_epi64(c, 8)), _mm256_set1_epi64x(int64_t(X2(mask_2_transpose))));
+	c = _mm256_xor_si256(_mm256_xor_si256(c, t), _mm256_slli_epi64(t, 8));
+	s = _mm256_and_si256(_mm256_xor_si256(d, _mm256_srli_epi64(d, 16)), _mm256_set1_epi64x(int64_t(X2(mask_3_transpose))));
+	d = _mm256_xor_si256(_mm256_xor_si256(d, s), _mm256_slli_epi64(s, 16));
+
+	const int64_t pos0t = int64_t(transpose_5x5_table[pos0]);
+	const int64_t pos1t = int64_t(transpose_5x5_table[pos1]);
+	const int64_t pos2t = int64_t(transpose_5x5_table[pos2]);
+	const int64_t pos3t = int64_t(transpose_5x5_table[pos3]);
+
+	const __m256i zz = _mm256_or_si256(c, _mm256_or_si256(d, _mm256_set_epi64x(pos0t, pos1t, pos2t, pos3t)));
+
+	alignas(32) uint64_t result1[4] = {}, result2[4] = {};
+	_mm256_storeu_si256((__m256i*)result1, tt);
+	_mm256_storeu_si256((__m256i*)result2, zz);
+
+	const bool b00 = result1[0] < result2[0];
+	const uint64_t r0 = b00 ? result1[0] : result2[0];
+	const bool b01 = result1[1] < result2[1];
+	const uint64_t r1 = b01 ? result1[1] : result2[1];
+	const bool b02 = result1[2] < result2[2];
+	const uint64_t r2 = b02 ? result1[2] : result2[2];
+	const bool b03 = result1[3] < result2[3];
+	const uint64_t r3 = b03 ? result1[3] : result2[3];
+	const bool b10 = r0 < r1;
+	const uint64_t r4 = b10 ? r0 : r1;
+	const bool b11 = r2 < r3;
+	const uint64_t r5 = b11 ? r2 : r3;
+	const bool b20 = r4 < r5;
+	return b20 ? r4 : r5;
 }
 
 bool test_bitboard_symmetry(const uint64_t seed, const int length) {
@@ -336,7 +429,8 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 
 		const uint64_t unique1 = code_unique(code);
 		const uint64_t unique2 = code_unique_naive(code);
-		if (unique1 != unique2) {
+		const uint64_t unique3 = code_unique_slow(code);
+		if (unique1 != unique2 || unique1 != unique3) {
 			return false;
 		}
 
@@ -538,6 +632,9 @@ void generate_moves(const uint64_t bb_player, const uint64_t bb_opponent, const 
 	assert(4 <= _mm_popcnt_u64(bb_player) && _mm_popcnt_u64(bb_player) <= 5);
 	assert(4 <= _mm_popcnt_u64(bb_opponent) && _mm_popcnt_u64(bb_opponent) <= 5);
 
+	const uint64_t code = encode_ostle(bb_player, bb_opponent, pos_hole);
+	assert(code == code_unique(code));
+
 	moves[0] = 0;
 
 	//コマを動かす手を生成する。
@@ -587,6 +684,8 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 
 	const uint64_t bb_hole = pdep_intrinsics(1ULL << pos_hole, BB_ALL_8X8_5X5);
 
+	assert((bb_player & pdep_intrinsics(1ULL << (move % 32), BB_ALL_8X8_5X5)) != 0);
+
 	if (move / 64) {
 
 		//横方向に動かす手の場合
@@ -605,6 +704,7 @@ uint8_t do_move(uint64_t &bb_player, uint64_t &bb_opponent, uint64_t &pos_hole, 
 		assert(index3_hole < 6);
 		assert(index4_player < 32);
 		assert(index5_opponent < 32);
+
 
 		bb_player =
 			(bb_player & (BB_ALL_8X8_5X5 ^ BB_ONELINE_HORIZONTAL_8X8_5X5[y_pos])) |
@@ -733,7 +833,7 @@ bool test_move(const uint64_t seed, const int length) {
 			std::cout << "test_move: " << i << " / " << length << std::endl;
 		}
 
-		const uint64_t pos = pos_dist(rnd);
+		uint64_t pos = pos_dist(rnd);
 		uint64_t bb_occupied = pdep_intrinsics(1ULL << pos, BB_ALL_8X8_5X5);
 
 		const auto fill_func = [&]() {
@@ -748,8 +848,13 @@ bool test_move(const uint64_t seed, const int length) {
 			return bb_answer;
 		};
 
-		const uint64_t bb1 = fill_func();
-		const uint64_t bb2 = fill_func();
+		uint64_t bb1 = fill_func();
+		uint64_t bb2 = fill_func();
+
+		{
+			const uint64_t c = code_unique(encode_ostle(bb1, bb2, pos));
+			decode_ostle(c, bb1, bb2, pos);
+		}
 
 		Moves moves;
 		generate_moves(bb1, bb2, pos, moves);
@@ -892,7 +997,7 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 			std::cout << "test_checkmate_detector_func: " << i << " / " << length << std::endl;
 		}
 
-		const uint64_t pos = pos_dist(rnd);
+		uint64_t pos = pos_dist(rnd);
 		uint64_t bb_occupied = pdep_intrinsics(1ULL << pos, BB_ALL_8X8_5X5);
 
 		const auto fill_func = [&]() {
@@ -907,8 +1012,13 @@ bool test_checkmate_detector_func(const uint64_t seed, const int length) {
 			return bb_answer;
 		};
 
-		const uint64_t bb1 = fill_func();
-		const uint64_t bb2 = fill_func();
+		uint64_t bb1 = fill_func();
+		uint64_t bb2 = fill_func();
+
+		{
+			const uint64_t c = code_unique(encode_ostle(bb1, bb2, pos));
+			decode_ostle(c, bb1, bb2, pos);
+		}
 
 		const bool b1 = is_checkmate_naive(bb1, bb2, pos);
 		const bool b2 = is_checkmate_slow(bb1, bb2, pos);
@@ -1509,6 +1619,27 @@ protected:
 		return lower;
 	}
 
+	uint64_t determine_forbidden_index(const uint64_t forbidden_code, const uint64_t now_code, Moves &moves) {
+
+		assert(forbidden_code == code_unique(forbidden_code));
+		assert(now_code == code_unique(now_code));
+
+		uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+		decode_ostle(now_code, bb_player, bb_opponent, pos_hole);
+
+		generate_moves(bb_player, bb_opponent, pos_hole, moves);
+		for (uint8_t i = 1; i <= moves[0]; ++i) {
+			uint64_t bb1 = bb_player, bb2 = bb_opponent, pos = pos_hole;
+			do_move(bb1, bb2, pos, moves[i]);
+			const uint64_t next_code = code_unique(encode_ostle(bb2, bb1, pos));
+			if (forbidden_code == next_code) {
+				return i;
+			}
+		}
+
+		return 0;
+	}
+
 	void output_special_positions(const uint64_t zerocount) {
 
 		constexpr int BUFSIZE = 2 * 1024 * 1024;
@@ -1598,19 +1729,9 @@ protected:
 					if (is_checkmate_position.get(next_index))continue;
 				}
 
-				//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、ノードを確定させる。
-				generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
-				uint64_t next_forbidden_index = 0;
-				for (uint8_t k = 1; k <= next_moves[0]; ++k) {
-					uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
-					do_move(bb1, bb2, pos, next_moves[k]);
-					if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
-						next_forbidden_index = k;
-						break;
-					}
-				}
+				const uint64_t forbidden_index = determine_forbidden_index(all_positions[i], all_positions[next_index], next_moves);
 
-				result[num_result++] = next_index * 25ULL + next_forbidden_index;
+				result[num_result++] = next_index * 25ULL + forbidden_index;
 			}
 
 #pragma omp critical
@@ -1834,17 +1955,8 @@ private:
 				continue;
 			}
 
-			//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、どのノードに到達したのか求める。
-			generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
-			int forbidden_index = 0;
-			for (uint8_t j = 1; j <= next_moves[0]; ++j) {
-				uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
-				do_move(bb1, bb2, pos, next_moves[j]);
-				if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
-					forbidden_index = j;
-					break;
-				}
-			}
+			const int forbidden_index = determine_forbidden_index(all_positions[index], all_positions[next_position_index], next_moves);
+
 			const uint64_t next_node_index = next_position_index * 25 + forbidden_index;
 			const uint64_t next_node_rank = is_nontrivial_node.rank1(next_node_index);
 			assert(is_nontrivial_node.get(next_node_index));
@@ -2193,8 +2305,8 @@ public:
 	}
 
 	int query(
-		const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole,
-		const uint64_t forbidden_bb_player, const uint64_t forbidden_bb_opponent, const uint64_t forbidden_pos_hole) {
+		uint64_t bb_player, uint64_t bb_opponent, uint64_t pos_hole,
+		uint64_t forbidden_bb_player, uint64_t forbidden_bb_opponent, uint64_t forbidden_pos_hole) {
 
 		const bool valid_input =
 			((bb_player & BB_ALL_8X8_5X5) == bb_player) &&
@@ -2226,17 +2338,13 @@ public:
 
 		if (is_checkmate(bb_player, bb_opponent, pos_hole))return -3;//チェックメイト盤面である
 
-		Moves moves;
+		decode_ostle(all_positions[index], bb_player, bb_opponent, pos_hole);
 
-		generate_moves(bb_player, bb_opponent, pos_hole, moves);
 		uint64_t forbidden_index = 0;
-		for (uint8_t i = 1; i <= moves[0]; ++i) {
-			uint64_t bb1 = bb_player, bb2 = bb_opponent, pos = pos_hole;
-			do_move(bb1, bb2, pos, moves[i]);
-			if (bb1 == forbidden_bb_player && bb2 == forbidden_bb_opponent && pos == forbidden_pos_hole) {
-				forbidden_index = i;
-				break;
-			}
+		const uint64_t forbidden_code_index = c2i_or_error(code_unique(encode_ostle(forbidden_bb_player, forbidden_bb_opponent, forbidden_pos_hole)));
+		if (forbidden_code_index != 0xFFFF'FFFF'FFFF'FFFFULL) {
+			Moves moves;
+			forbidden_index = determine_forbidden_index(all_positions[forbidden_code_index], all_positions[index], moves);
 		}
 
 		if (!is_nontrivial_node.get(index * 25 + forbidden_index))return -4;//入力の（盤面、禁じ手）の組み合わせに到達できない
@@ -2299,8 +2407,6 @@ private:
 			Moves moves, next_moves;
 			generate_moves(bb_player, bb_opponent, pos_hole, moves);
 
-
-
 			assert(moves[0] <= 24);
 
 			//結果を書き出しておくための配列。これによってクリティカルセクションに出入りする頻度を減らす。
@@ -2309,6 +2415,7 @@ private:
 			//盤面all_positions[i]から指し手moves[j]によって到達するノードは、到達可能なノードである。
 			for (uint8_t j = 1; j <= moves[0]; ++j) {
 
+				//moves[j]を指す。
 				uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
 				do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[j]);
 
@@ -2316,21 +2423,11 @@ private:
 				if (_mm_popcnt_u64(next_bb_player) == 3)continue;
 				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
 
+				//moves[j]を指した後の盤面に対して、対称な変換を適宜適用して、all_positionsに存在する盤面にする。
 				const uint64_t next_index = code2index(code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole)));
 
-				//到達した先の盤面から更に1手指したらもとに戻るならば禁じ手である。それを探すことで、ノードを確定させる。
-				generate_moves(next_bb_opponent, next_bb_player, next_pos_hole, next_moves);
-				uint64_t next_forbidden_index = 0;
-				for (uint8_t k = 1; k <= next_moves[0]; ++k) {
-					uint64_t bb1 = next_bb_opponent, bb2 = next_bb_player, pos = next_pos_hole;
-					do_move(bb1, bb2, pos, next_moves[k]);
-					if (bb2 == bb_player && bb1 == bb_opponent && pos == pos_hole) {
-						next_forbidden_index = k;
-						break;
-					}
-				}
-
-				result[num_result++] = is_nontrivial_node.rank1(next_index * 25ULL + next_forbidden_index);
+				const uint64_t forbidden_index = determine_forbidden_index(now_code, all_positions[next_index], next_moves);
+				result[num_result++] = is_nontrivial_node.rank1(next_index * 25ULL + forbidden_index);
 			}
 
 #pragma omp critical
@@ -2549,6 +2646,7 @@ int main(int argc, char *argv[]) {
 
 	if (input.empty()) {
 		std::cout << "LOG: [" << get_datetime_str() << "] notice: no command-line input" << std::endl;
+		omp_set_num_threads(8);
 		solve_8();
 		solve_8_bfs();
 		std::cout << "LOG: [" << get_datetime_str() << "] finish" << std::endl;
