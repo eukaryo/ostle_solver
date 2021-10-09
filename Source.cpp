@@ -427,12 +427,17 @@ bool test_bitboard_symmetry(const uint64_t seed, const int length) {
 			return false;
 		}
 
-		const uint64_t unique1 = code_unique(code);
-		const uint64_t unique2 = code_unique_naive(code);
-		const uint64_t unique3 = code_unique_slow(code);
-		if (unique1 != unique2 || unique1 != unique3) {
-			return false;
+		for (uint32_t i = 0; i < 8; ++i) {
+			const uint64_t c = code_symmetry(i, code);
+			const uint64_t unique1 = code_unique(c);
+			const uint64_t unique2 = code_unique_naive(c);
+			const uint64_t unique3 = code_unique_slow(c);
+			if (unique1 != unique2 || unique1 != unique3) {
+				return false;
+			}
 		}
+
+
 
 		return true;
 	};
