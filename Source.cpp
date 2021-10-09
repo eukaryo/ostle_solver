@@ -2620,18 +2620,20 @@ int main(int argc, char *argv[]) {
 
 	const int num_logical_core = omp_get_num_threads();
 	if (input.find("parallel") == input.end()) {
+		std::cout << "notice: no parallel processing is performed. (single CPU core is used.)" << std::endl;
 		omp_set_num_threads(1);
 	}
 	else {
 		const int par = std::stoi(input["parallel"]);
-		if (1 <= par && par < omp_get_max_threads()) {
+		if (1 <= par && par <= omp_get_max_threads()) {
+			std::cout << "notice: " << par <<" CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 			omp_set_num_threads(par);
 		}
 		else if (par == -1) {
 			std::cout << "notice: input == -1 : all CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 		}
 		else {
-			std::cout << "warning: parallelism setting is ignored. (all CPU cores are used) input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+			std::cout << "warning: parallelism setting is ignored. (all CPU cores are used.) input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 		}
 	}
 
