@@ -2564,9 +2564,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	std::map<std::string, std::string>input;
-	std::string opecode = "";
+	std::string opcode = "";
 	for (uint64_t i = 0; i < args.size(); ++i) {
-		if (opecode == "") {
+		if (opcode == "") {
 			if (args[i] == "-r" || args[i] == "--retrograde") {
 				input["retrograde"] = "true";
 			}
@@ -2577,25 +2577,25 @@ int main(int argc, char *argv[]) {
 				input["bfs"] = "true";
 			}
 			else if (args[i] == "-p" || args[i] == "--parallel") {
-				opecode = "parallel";
+				opcode = "parallel";
 			}
 			else if (args[i] == "-s" || args[i] == "--startpiece") {
-				opecode = "startpiece";
+				opcode = "startpiece";
 			}
 			else {
 				std::cout << "error: command line argument is invalid. error_code = 1 (cf. main function of the source code)" << std::endl;
 				return 0;
 			}
 		}
-		else if (opecode == "parallel") {
+		else if (opcode == "parallel") {
 			if (std::regex_match(args[i], std::regex(R"(0*[1-9][0-9]{0,5})"))) {
-				opecode = "";
+				opcode = "";
 				const int par = std::stoi(args[i]);
 				assert(1 <= par && par <= 10000000);
 				input["parallel"] = std::to_string(par);
 			}
 			else if (args[i] == "-1") {
-				opecode = "";
+				opcode = "";
 				input["parallel"] = "-1";
 			}
 			else {
@@ -2603,9 +2603,9 @@ int main(int argc, char *argv[]) {
 				return 0;
 			}
 		}
-		else if (opecode == "startpiece") {
+		else if (opcode == "startpiece") {
 			if (args[i] == std::string("8") || args[i] == std::string("9") || args[i] == std::string("10")) {
-				opecode = "";
+				opcode = "";
 				input["startpiece"] = args[i];
 			}
 			else {
@@ -2618,7 +2618,7 @@ int main(int argc, char *argv[]) {
 			return 0;
 		}
 	}
-	if (opecode != std::string("")) {
+	if (opcode != std::string("")) {
 		std::cout << "error: command line argument is invalid. error_code = 5 (cf. main function of the source code)" << std::endl;
 		return 0;
 	}
