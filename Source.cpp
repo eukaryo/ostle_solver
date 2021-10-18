@@ -380,24 +380,17 @@ uint64_t code_unique(const uint64_t code) {
 
 	const __m256i zz = _mm256_or_si256(c, _mm256_or_si256(d, _mm256_set_epi64x(pos0t, pos1t, pos2t, pos3t)));
 
-	alignas(32) uint64_t result1[4] = {}, result2[4] = {};
-	_mm256_storeu_si256((__m256i*)result1, tt);
-	_mm256_storeu_si256((__m256i*)result2, zz);
+	const __m256i a1 = _mm256_sub_epi64(zz, tt);
+	const __m256i a2 = _mm256_srai_epi32(a1, 32);
+	const __m256i a3 = _mm256_shuffle_epi32(a2, 0b11110101);
+	const __m256i a4 = _mm256_blendv_epi8(tt, zz, a3);
+	alignas(32) uint64_t result[4] = {};
+	_mm256_storeu_si256((__m256i*)result, a4);
 
-	const bool b00 = result1[0] < result2[0];
-	const uint64_t r0 = b00 ? result1[0] : result2[0];
-	const bool b01 = result1[1] < result2[1];
-	const uint64_t r1 = b01 ? result1[1] : result2[1];
-	const bool b02 = result1[2] < result2[2];
-	const uint64_t r2 = b02 ? result1[2] : result2[2];
-	const bool b03 = result1[3] < result2[3];
-	const uint64_t r3 = b03 ? result1[3] : result2[3];
-	const bool b10 = r0 < r1;
-	const uint64_t r4 = b10 ? r0 : r1;
-	const bool b11 = r2 < r3;
-	const uint64_t r5 = b11 ? r2 : r3;
-	const bool b20 = r4 < r5;
-	return b20 ? r4 : r5;
+	result[0] = std::min(result[0], result[1]);
+	result[0] = std::min(result[0], result[2]);
+	result[0] = std::min(result[0], result[3]);
+	return result[0];
 }
 
 bool test_bitboard_symmetry(const uint64_t seed, const int length) {
@@ -2728,4 +2721,3 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
