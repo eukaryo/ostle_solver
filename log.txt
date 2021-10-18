@@ -1,0 +1,513 @@
+notice: input == -1 : all CPU cores are used. omp_get_max_threads() = 36
+LOG: [2021/10/08 21:00:29] start: retrograde analysis: start_piece = 10
+LOG: [2021/10/08 21:00:29] start: dfs_position_root
+result: dfs_position_root( 0,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 1,5,5): 494236512 positions; 494236512 unique positions.
+result: dfs_position_root( 2,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 6,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 7,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root(12,5,5): 494236512 positions;  61788564 unique positions.
+result: dfs_position_root( 0,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 1,5,4): 164745504 positions; 164745504 unique positions.
+result: dfs_position_root( 2,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 6,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 7,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root(12,5,4): 164745504 positions;  20598588 unique positions.
+result: dfs_position_root( 0,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 1,4,5): 164745504 positions; 164745504 unique positions.
+result: dfs_position_root( 2,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 6,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 7,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root(12,4,5): 164745504 positions;  20598588 unique positions.
+result: dfs_position_root( 0,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 1,4,4):  51482970 positions;  51482970 unique positions.
+result: dfs_position_root( 2,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 6,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 7,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root(12,4,4):  51482970 positions;   6438855 unique positions.
+LOG: [2021/10/08 21:10:20] finish: dfs_position_root
+result: total number of the unique positions = 2735147685
+LOG: [2021/10/08 21:10:20] start: sort and verify uniqueness
+LOG: [2021/10/08 21:12:33] finish: sort and verify uniqueness
+LOG: [2021/10/08 21:12:33] start: retrograde_analysis
+LOG: [2021/10/08 21:12:33] start: count_nontrivial_node_and_make_bitvector
+result: number of checkmate positions     =  399102582 / 2735147685 (14.5916 %)
+result: number of non-checkmate positions = 2336045103
+result: number of non-trivial nodes = 11148725918 / 68378692125 (16.3044 %)
+result: number of nodes s.t. non-checkmate & no forbidden move & trivial(unreachable) = 2149 / 2735147685 (7.85698e-05 %)
+result: number of non-trivial nodes with forbidden move = 8812682964 / 11148725918 (79.0465 %)
+LOG: [2021/10/08 21:40:32] finish: count_nontrivial_node_and_make_bitvector
+LOG: [2021/10/08 21:40:55] start: iteration 1
+LOG: [2021/10/08 22:06:56] finish: iteration 1 : updated_num = 1310073198(denovo = 1310073198), elapsed time = 1560852 ms
+LOG: [2021/10/08 22:06:56] start: iteration 2
+LOG: [2021/10/08 22:33:01] finish: iteration 2 : updated_num = 982755735(denovo = 982632912), elapsed time = 1565377 ms
+LOG: [2021/10/08 22:33:01] start: iteration 3
+LOG: [2021/10/08 22:59:08] finish: iteration 3 : updated_num = 833866187(denovo = 833240499), elapsed time = 1567284 ms
+LOG: [2021/10/08 22:59:08] start: iteration 4
+LOG: [2021/10/08 23:25:19] finish: iteration 4 : updated_num = 925388847(denovo = 921747825), elapsed time = 1570769 ms
+LOG: [2021/10/08 23:25:19] start: iteration 5
+LOG: [2021/10/08 23:51:33] finish: iteration 5 : updated_num = 945243301(denovo = 935210527), elapsed time = 1574200 ms
+LOG: [2021/10/08 23:51:33] start: iteration 6
+LOG: [2021/10/09 00:17:50] finish: iteration 6 : updated_num = 903166529(denovo = 884063682), elapsed time = 1576564 ms
+LOG: [2021/10/09 00:17:50] start: iteration 7
+LOG: [2021/10/09 00:44:07] finish: iteration 7 : updated_num = 813054135(denovo = 785398078), elapsed time = 1577181 ms
+LOG: [2021/10/09 00:44:07] start: iteration 8
+LOG: [2021/10/09 01:10:25] finish: iteration 8 : updated_num = 719196043(denovo = 685842419), elapsed time = 1578542 ms
+LOG: [2021/10/09 01:10:25] start: iteration 9
+LOG: [2021/10/09 01:36:44] finish: iteration 9 : updated_num = 628490341(denovo = 592237621), elapsed time = 1578923 ms
+LOG: [2021/10/09 01:36:44] start: iteration 10
+LOG: [2021/10/09 02:03:04] finish: iteration 10 : updated_num = 542636802(denovo = 505714219), elapsed time = 1579273 ms
+LOG: [2021/10/09 02:03:04] start: iteration 11
+LOG: [2021/10/09 02:29:22] finish: iteration 11 : updated_num = 463493820(denovo = 427425020), elapsed time = 1578777 ms
+LOG: [2021/10/09 02:29:22] start: iteration 12
+LOG: [2021/10/09 02:55:41] finish: iteration 12 : updated_num = 392049187(denovo = 357967453), elapsed time = 1578704 ms
+LOG: [2021/10/09 02:55:41] start: iteration 13
+LOG: [2021/10/09 03:21:59] finish: iteration 13 : updated_num = 329080358(denovo = 297723575), elapsed time = 1578147 ms
+LOG: [2021/10/09 03:21:59] start: iteration 14
+LOG: [2021/10/09 03:48:16] finish: iteration 14 : updated_num = 274242476(denovo = 245990571), elapsed time = 1577187 ms
+LOG: [2021/10/09 03:48:16] start: iteration 15
+LOG: [2021/10/09 04:14:34] finish: iteration 15 : updated_num = 226924730(denovo = 201925398), elapsed time = 1577401 ms
+LOG: [2021/10/09 04:14:34] start: iteration 16
+LOG: [2021/10/09 04:40:50] finish: iteration 16 : updated_num = 186785053(denovo = 164958627), elapsed time = 1576239 ms
+LOG: [2021/10/09 04:40:50] start: iteration 17
+LOG: [2021/10/09 05:07:06] finish: iteration 17 : updated_num = 152906381(denovo = 134112502), elapsed time = 1576031 ms
+LOG: [2021/10/09 05:07:06] start: iteration 18
+LOG: [2021/10/09 05:33:22] finish: iteration 18 : updated_num = 124662423(denovo = 108623194), elapsed time = 1575762 ms
+LOG: [2021/10/09 05:33:22] start: iteration 19
+LOG: [2021/10/09 05:59:38] finish: iteration 19 : updated_num = 101104013(denovo = 87561581), elapsed time = 1575728 ms
+LOG: [2021/10/09 05:59:38] start: iteration 20
+LOG: [2021/10/09 06:25:53] finish: iteration 20 : updated_num = 81662118(denovo = 70353877), elapsed time = 1575356 ms
+LOG: [2021/10/09 06:25:53] start: iteration 21
+LOG: [2021/10/09 06:52:08] finish: iteration 21 : updated_num = 65697115(denovo = 56364697), elapsed time = 1574664 ms
+LOG: [2021/10/09 06:52:08] start: iteration 22
+LOG: [2021/10/09 07:18:23] finish: iteration 22 : updated_num = 52690133(denovo = 45063525), elapsed time = 1575052 ms
+LOG: [2021/10/09 07:18:23] start: iteration 23
+LOG: [2021/10/09 07:44:37] finish: iteration 23 : updated_num = 41965321(denovo = 35797929), elapsed time = 1574406 ms
+LOG: [2021/10/09 07:44:37] start: iteration 24
+LOG: [2021/10/09 08:10:52] finish: iteration 24 : updated_num = 33278577(denovo = 28333741), elapsed time = 1574410 ms
+LOG: [2021/10/09 08:10:52] start: iteration 25
+LOG: [2021/10/09 08:37:07] finish: iteration 25 : updated_num = 26411295(denovo = 22468710), elapsed time = 1575084 ms
+LOG: [2021/10/09 08:37:07] start: iteration 26
+LOG: [2021/10/09 09:03:22] finish: iteration 26 : updated_num = 20991700(denovo = 17859537), elapsed time = 1575313 ms
+LOG: [2021/10/09 09:03:22] start: iteration 27
+LOG: [2021/10/09 09:29:37] finish: iteration 27 : updated_num = 16707891(denovo = 14229337), elapsed time = 1574708 ms
+LOG: [2021/10/09 09:29:37] start: iteration 28
+LOG: [2021/10/09 09:55:51] finish: iteration 28 : updated_num = 13312112(denovo = 11334452), elapsed time = 1574566 ms
+LOG: [2021/10/09 09:55:51] start: iteration 29
+LOG: [2021/10/09 10:22:06] finish: iteration 29 : updated_num = 10626989(denovo = 9059182), elapsed time = 1574752 ms
+LOG: [2021/10/09 10:22:06] start: iteration 30
+LOG: [2021/10/09 10:48:20] finish: iteration 30 : updated_num = 8507145(denovo = 7238759), elapsed time = 1574307 ms
+LOG: [2021/10/09 10:48:20] start: iteration 31
+LOG: [2021/10/09 11:14:34] finish: iteration 31 : updated_num = 6809902(denovo = 5778468), elapsed time = 1574043 ms
+LOG: [2021/10/09 11:14:34] start: iteration 32
+LOG: [2021/10/09 11:40:48] finish: iteration 32 : updated_num = 5474057(denovo = 4632058), elapsed time = 1573973 ms
+LOG: [2021/10/09 11:40:48] start: iteration 33
+LOG: [2021/10/09 12:07:03] finish: iteration 33 : updated_num = 4400583(denovo = 3709270), elapsed time = 1574488 ms
+LOG: [2021/10/09 12:07:03] start: iteration 34
+LOG: [2021/10/09 12:33:17] finish: iteration 34 : updated_num = 3546163(denovo = 2980062), elapsed time = 1574283 ms
+LOG: [2021/10/09 12:33:17] start: iteration 35
+LOG: [2021/10/09 12:59:31] finish: iteration 35 : updated_num = 2863160(denovo = 2384865), elapsed time = 1573938 ms
+LOG: [2021/10/09 12:59:31] start: iteration 36
+LOG: [2021/10/09 13:25:45] finish: iteration 36 : updated_num = 2291883(denovo = 1895592), elapsed time = 1573657 ms
+LOG: [2021/10/09 13:25:45] start: iteration 37
+LOG: [2021/10/09 13:51:59] finish: iteration 37 : updated_num = 1839030(denovo = 1514638), elapsed time = 1574534 ms
+LOG: [2021/10/09 13:51:59] start: iteration 38
+LOG: [2021/10/09 14:18:13] finish: iteration 38 : updated_num = 1473992(denovo = 1211895), elapsed time = 1573988 ms
+LOG: [2021/10/09 14:18:13] start: iteration 39
+LOG: [2021/10/09 14:44:27] finish: iteration 39 : updated_num = 1191915(denovo = 978839), elapsed time = 1574009 ms
+LOG: [2021/10/09 14:44:27] start: iteration 40
+LOG: [2021/10/09 15:10:41] finish: iteration 40 : updated_num = 965620(denovo = 788715), elapsed time = 1574095 ms
+LOG: [2021/10/09 15:10:41] start: iteration 41
+LOG: [2021/10/09 15:36:56] finish: iteration 41 : updated_num = 791610(denovo = 643093), elapsed time = 1574464 ms
+LOG: [2021/10/09 15:36:56] start: iteration 42
+LOG: [2021/10/09 16:03:10] finish: iteration 42 : updated_num = 649117(denovo = 522211), elapsed time = 1574079 ms
+LOG: [2021/10/09 16:03:10] start: iteration 43
+LOG: [2021/10/09 16:29:24] finish: iteration 43 : updated_num = 523253(denovo = 412673), elapsed time = 1573939 ms
+LOG: [2021/10/09 16:29:24] start: iteration 44
+LOG: [2021/10/09 16:55:38] finish: iteration 44 : updated_num = 416141(denovo = 322989), elapsed time = 1574115 ms
+LOG: [2021/10/09 16:55:38] start: iteration 45
+LOG: [2021/10/09 17:21:52] finish: iteration 45 : updated_num = 324248(denovo = 250712), elapsed time = 1573633 ms
+LOG: [2021/10/09 17:21:52] start: iteration 46
+LOG: [2021/10/09 17:48:05] finish: iteration 46 : updated_num = 249184(denovo = 193220), elapsed time = 1573662 ms
+LOG: [2021/10/09 17:48:05] start: iteration 47
+LOG: [2021/10/09 18:14:19] finish: iteration 47 : updated_num = 190241(denovo = 149145), elapsed time = 1574264 ms
+LOG: [2021/10/09 18:14:19] start: iteration 48
+LOG: [2021/10/09 18:40:33] finish: iteration 48 : updated_num = 142586(denovo = 113391), elapsed time = 1573974 ms
+LOG: [2021/10/09 18:40:33] start: iteration 49
+LOG: [2021/10/09 19:06:47] finish: iteration 49 : updated_num = 106221(denovo = 85992), elapsed time = 1573737 ms
+LOG: [2021/10/09 19:06:47] start: iteration 50
+LOG: [2021/10/09 19:33:01] finish: iteration 50 : updated_num = 79498(denovo = 65168), elapsed time = 1573795 ms
+LOG: [2021/10/09 19:33:01] start: iteration 51
+LOG: [2021/10/09 19:59:15] finish: iteration 51 : updated_num = 57804(denovo = 47733), elapsed time = 1573760 ms
+LOG: [2021/10/09 19:59:15] start: iteration 52
+LOG: [2021/10/09 20:25:28] finish: iteration 52 : updated_num = 42034(denovo = 35071), elapsed time = 1573758 ms
+LOG: [2021/10/09 20:25:28] start: iteration 53
+LOG: [2021/10/09 20:51:43] finish: iteration 53 : updated_num = 30841(denovo = 25881), elapsed time = 1574056 ms
+LOG: [2021/10/09 20:51:43] start: iteration 54
+LOG: [2021/10/09 21:17:56] finish: iteration 54 : updated_num = 23549(denovo = 19201), elapsed time = 1573446 ms
+LOG: [2021/10/09 21:17:56] start: iteration 55
+LOG: [2021/10/09 21:44:10] finish: iteration 55 : updated_num = 16429(denovo = 13102), elapsed time = 1574413 ms
+LOG: [2021/10/09 21:44:10] start: iteration 56
+LOG: [2021/10/09 22:10:25] finish: iteration 56 : updated_num = 11741(denovo = 9388), elapsed time = 1574414 ms
+LOG: [2021/10/09 22:10:25] start: iteration 57
+LOG: [2021/10/09 22:36:40] finish: iteration 57 : updated_num = 8999(denovo = 7000), elapsed time = 1574959 ms
+LOG: [2021/10/09 22:36:40] start: iteration 58
+LOG: [2021/10/09 23:02:54] finish: iteration 58 : updated_num = 6799(denovo = 4928), elapsed time = 1573894 ms
+LOG: [2021/10/09 23:02:54] start: iteration 59
+LOG: [2021/10/09 23:29:08] finish: iteration 59 : updated_num = 5323(denovo = 3721), elapsed time = 1573937 ms
+LOG: [2021/10/09 23:29:08] start: iteration 60
+LOG: [2021/10/09 23:55:22] finish: iteration 60 : updated_num = 3295(denovo = 2144), elapsed time = 1573966 ms
+LOG: [2021/10/09 23:55:22] start: iteration 61
+LOG: [2021/10/10 00:21:36] finish: iteration 61 : updated_num = 1706(denovo = 1303), elapsed time = 1574450 ms
+LOG: [2021/10/10 00:21:36] start: iteration 62
+LOG: [2021/10/10 00:47:50] finish: iteration 62 : updated_num = 1082(denovo = 879), elapsed time = 1574048 ms
+LOG: [2021/10/10 00:47:50] start: iteration 63
+LOG: [2021/10/10 01:14:04] finish: iteration 63 : updated_num = 652(denovo = 625), elapsed time = 1574358 ms
+LOG: [2021/10/10 01:14:04] start: iteration 64
+LOG: [2021/10/10 01:40:19] finish: iteration 64 : updated_num = 443(denovo = 436), elapsed time = 1574190 ms
+LOG: [2021/10/10 01:40:19] start: iteration 65
+LOG: [2021/10/10 02:06:33] finish: iteration 65 : updated_num = 329(denovo = 329), elapsed time = 1574053 ms
+LOG: [2021/10/10 02:06:33] start: iteration 66
+LOG: [2021/10/10 02:32:47] finish: iteration 66 : updated_num = 317(denovo = 317), elapsed time = 1573866 ms
+LOG: [2021/10/10 02:32:47] start: iteration 67
+LOG: [2021/10/10 02:59:01] finish: iteration 67 : updated_num = 298(denovo = 298), elapsed time = 1574501 ms
+LOG: [2021/10/10 02:59:01] start: iteration 68
+LOG: [2021/10/10 03:25:15] finish: iteration 68 : updated_num = 131(denovo = 131), elapsed time = 1574388 ms
+LOG: [2021/10/10 03:25:15] start: iteration 69
+LOG: [2021/10/10 03:51:30] finish: iteration 69 : updated_num = 130(denovo = 130), elapsed time = 1574633 ms
+LOG: [2021/10/10 03:51:30] start: iteration 70
+LOG: [2021/10/10 04:17:45] finish: iteration 70 : updated_num = 159(denovo = 159), elapsed time = 1574703 ms
+LOG: [2021/10/10 04:17:45] start: iteration 71
+LOG: [2021/10/10 04:43:59] finish: iteration 71 : updated_num = 204(denovo = 204), elapsed time = 1573856 ms
+LOG: [2021/10/10 04:43:59] start: iteration 72
+LOG: [2021/10/10 05:10:12] finish: iteration 72 : updated_num = 136(denovo = 136), elapsed time = 1573684 ms
+LOG: [2021/10/10 05:10:12] start: iteration 73
+LOG: [2021/10/10 05:36:26] finish: iteration 73 : updated_num = 41(denovo = 41), elapsed time = 1573931 ms
+LOG: [2021/10/10 05:36:26] start: iteration 74
+LOG: [2021/10/10 06:02:41] finish: iteration 74 : updated_num = 16(denovo = 16), elapsed time = 1574366 ms
+LOG: [2021/10/10 06:02:41] start: iteration 75
+LOG: [2021/10/10 06:28:55] finish: iteration 75 : updated_num = 11(denovo = 11), elapsed time = 1574230 ms
+LOG: [2021/10/10 06:28:55] start: iteration 76
+LOG: [2021/10/10 06:55:09] finish: iteration 76 : updated_num = 0(denovo = 0), elapsed time = 1573899 ms
+LOG: [2021/10/10 06:55:09] finish: retrograde_analysis
+LOG: [2021/10/10 06:55:09] start: print_statistics_of_results
+result: number of nontrivial nodes of which distance to endgame is:
+result:  -1 : 0
+result: 0 : 339367091
+result: 1 : 577327477
+result: 2 : 1208259074
+result: 3 : 250385204
+result: 4 : 514915495
+result: 5 : 294380826
+result: 6 : 569040388
+result: 7 : 352821271
+result: 8 : 559455180
+result: 9 : 379808723
+result: 10 : 535425081
+result: 11 : 379563356
+result: 12 : 462977806
+result: 13 : 352330833
+result: 14 : 395732654
+result: 15 : 318063321
+result: 16 : 338626104
+result: 17 : 281546559
+result: 18 : 287320623
+result: 19 : 244575415
+result: 20 : 241883809
+result: 21 : 208979928
+result: 22 : 202402295
+result: 23 : 176160115
+result: 24 : 168414137
+result: 25 : 146956825
+result: 26 : 139319551
+result: 27 : 121669807
+result: 28 : 114485394
+result: 29 : 99874325
+result: 30 : 93577296
+result: 31 : 81527252
+result: 32 : 76116163
+result: 33 : 66122478
+result: 34 : 61530140
+result: 35 : 53329309
+result: 36 : 49530287
+result: 37 : 42847011
+result: 38 : 39660828
+result: 39 : 34312611
+result: 40 : 31679932
+result: 41 : 27408599
+result: 42 : 25272339
+result: 43 : 21858443
+result: 44 : 20072851
+result: 45 : 17341986
+result: 46 : 15898815
+result: 47 : 13731415
+result: 48 : 12600718
+result: 49 : 10908242
+result: 50 : 9994880
+result: 51 : 8667693
+result: 52 : 7940165
+result: 53 : 6893605
+result: 54 : 6314317
+result: 55 : 5502897
+result: 56 : 5039556
+result: 57 : 4382022
+result: 58 : 3998228
+result: 59 : 3470949
+result: 60 : 3163370
+result: 61 : 2764844
+result: 62 : 2521503
+result: 63 : 2195886
+result: 64 : 2010460
+result: 65 : 1759413
+result: 66 : 1595483
+result: 67 : 1400525
+result: 68 : 1267104
+result: 69 : 1108248
+result: 70 : 1006232
+result: 71 : 878861
+result: 72 : 801288
+result: 73 : 700241
+result: 74 : 649879
+result: 75 : 561353
+result: 76 : 528175
+result: 77 : 449395
+result: 78 : 434621
+result: 79 : 361217
+result: 80 : 352810
+result: 81 : 291770
+result: 82 : 285312
+result: 83 : 233005
+result: 84 : 229210
+result: 85 : 186949
+result: 86 : 179324
+result: 87 : 144595
+result: 88 : 138428
+result: 89 : 113388
+result: 90 : 108165
+result: 91 : 86970
+result: 92 : 83620
+result: 93 : 67110
+result: 94 : 65247
+result: 95 : 53164
+result: 96 : 51284
+result: 97 : 40837
+result: 98 : 38653
+result: 99 : 30388
+result: 100 : 27311
+result: 101 : 22936
+result: 102 : 21612
+result: 103 : 18273
+result: 104 : 15740
+result: 105 : 13176
+result: 106 : 10996
+result: 107 : 9486
+result: 108 : 7740
+result: 109 : 7290
+result: 110 : 5481
+result: 111 : 5015
+result: 112 : 3885
+result: 113 : 3741
+result: 114 : 2885
+result: 115 : 2593
+result: 116 : 1785
+result: 117 : 1447
+result: 118 : 1005
+result: 119 : 771
+result: 120 : 690
+result: 121 : 425
+result: 122 : 433
+result: 123 : 282
+result: 124 : 387
+result: 125 : 308
+result: 126 : 321
+result: 127 : 212
+result: 128 : 226
+result: 129 : 205
+result: 130 : 179
+result: 131 : 211
+result: 132 : 73
+result: 133 : 113
+result: 134 : 44
+result: 135 : 99
+result: 136 : 68
+result: 137 : 146
+result: 138 : 74
+result: 139 : 106
+result: 140 : 44
+result: 141 : 40
+result: 142 : 16
+result: 143 : 7
+result: 144 : 9
+result: 145 : 4
+result: 146 : 7
+LOG: [2021/10/10 06:55:27] finish: print_statistics_of_results
+LOG: [2021/10/10 06:55:27] start: answer_about_initial_position
+
+visualize ostle--------------------------
+
+□□□□□  player   : ■
+＋＋＋＋＋  opponent : □
+＋＋◎＋＋  hole     : ◎
+＋＋＋＋＋  empty    : ＋
+■■■■■
+
+-----------------------------------------
+result: the initial position is draw.
+LOG: [2021/10/10 06:55:27] finish: answer_about_initial_position
+LOG: [2021/10/10 06:55:27] start: output_positions_and_solutions
+LOG: [2021/10/10 07:55:13] finish: output_positions_and_solutions
+LOG: [2021/10/10 07:56:01] finish: retrograde analysis: start_piece = 10, elapsed time = 125732068 ms, fingerprint = 3026002765147571876
+LOG: [2021/10/10 07:56:03] start: breadth-first search from the initial node: start_piece = 10
+LOG: [2021/10/10 07:56:03] start: dfs_position_root
+result: dfs_position_root( 0,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 1,5,5): 494236512 positions; 494236512 unique positions.
+result: dfs_position_root( 2,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 6,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root( 7,5,5): 494236512 positions; 247127256 unique positions.
+result: dfs_position_root(12,5,5): 494236512 positions;  61788564 unique positions.
+result: dfs_position_root( 0,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 1,5,4): 164745504 positions; 164745504 unique positions.
+result: dfs_position_root( 2,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 6,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 7,5,4): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root(12,5,4): 164745504 positions;  20598588 unique positions.
+result: dfs_position_root( 0,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 1,4,5): 164745504 positions; 164745504 unique positions.
+result: dfs_position_root( 2,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 6,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root( 7,4,5): 164745504 positions;  82378152 unique positions.
+result: dfs_position_root(12,4,5): 164745504 positions;  20598588 unique positions.
+result: dfs_position_root( 0,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 1,4,4):  51482970 positions;  51482970 unique positions.
+result: dfs_position_root( 2,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 6,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root( 7,4,4):  51482970 positions;  25744590 unique positions.
+result: dfs_position_root(12,4,4):  51482970 positions;   6438855 unique positions.
+LOG: [2021/10/10 08:06:02] finish: dfs_position_root
+result: total number of the unique positions = 2735147685
+LOG: [2021/10/10 08:06:02] start: sort and verify uniqueness
+LOG: [2021/10/10 08:08:18] finish: sort and verify uniqueness
+LOG: [2021/10/10 08:08:18] start: bfs
+LOG: [2021/10/10 08:08:18] start: count_nontrivial_node_and_make_bitvector
+result: number of checkmate positions     =  399102582 / 2735147685 (14.5916 %)
+result: number of non-checkmate positions = 2336045103
+result: number of non-trivial nodes = 12919984336 / 68378692125 (18.8948 %)
+result: number of nodes s.t. non-checkmate & no forbidden move & trivial(unreachable) = 2149 / 2735147685 (7.85698e-05 %)
+result: number of non-trivial nodes with forbidden move = 10583941382 / 12919984336 (81.9192 %)
+LOG: [2021/10/10 08:41:05] finish: count_nontrivial_node_and_make_bitvector
+LOG: [2021/10/10 08:41:22] start: iteration 1
+LOG: [2021/10/10 08:41:30] mid: bfs
+LOG: [2021/10/10 08:41:50] finish: iteration 1 : updated_num = 9, elapsed time = 27532 ms
+LOG: [2021/10/10 08:41:50] start: iteration 2
+LOG: [2021/10/10 08:41:58] mid: bfs
+LOG: [2021/10/10 08:42:17] finish: iteration 2 : updated_num = 102, elapsed time = 27528 ms
+LOG: [2021/10/10 08:42:17] start: iteration 3
+LOG: [2021/10/10 08:42:25] mid: bfs
+LOG: [2021/10/10 08:42:45] finish: iteration 3 : updated_num = 954, elapsed time = 27507 ms
+LOG: [2021/10/10 08:42:45] start: iteration 4
+LOG: [2021/10/10 08:42:53] mid: bfs
+LOG: [2021/10/10 08:43:12] finish: iteration 4 : updated_num = 6329, elapsed time = 27270 ms
+LOG: [2021/10/10 08:43:12] start: iteration 5
+LOG: [2021/10/10 08:43:20] mid: bfs
+LOG: [2021/10/10 08:43:39] finish: iteration 5 : updated_num = 33052, elapsed time = 27353 ms
+LOG: [2021/10/10 08:43:39] start: iteration 6
+LOG: [2021/10/10 08:43:48] mid: bfs
+LOG: [2021/10/10 08:44:07] finish: iteration 6 : updated_num = 147620, elapsed time = 27358 ms
+LOG: [2021/10/10 08:44:07] start: iteration 7
+LOG: [2021/10/10 08:44:15] mid: bfs
+LOG: [2021/10/10 08:44:34] finish: iteration 7 : updated_num = 556811, elapsed time = 27622 ms
+LOG: [2021/10/10 08:44:34] start: iteration 8
+LOG: [2021/10/10 08:44:43] mid: bfs
+LOG: [2021/10/10 08:45:02] finish: iteration 8 : updated_num = 1863530, elapsed time = 27973 ms
+LOG: [2021/10/10 08:45:02] start: iteration 9
+LOG: [2021/10/10 08:45:12] mid: bfs
+LOG: [2021/10/10 08:45:31] finish: iteration 9 : updated_num = 5542830, elapsed time = 28884 ms
+LOG: [2021/10/10 08:45:31] start: iteration 10
+LOG: [2021/10/10 08:45:43] mid: bfs
+LOG: [2021/10/10 08:46:03] finish: iteration 10 : updated_num = 15200179, elapsed time = 31465 ms
+LOG: [2021/10/10 08:46:03] start: iteration 11
+LOG: [2021/10/10 08:46:22] mid: bfs
+LOG: [2021/10/10 08:46:42] finish: iteration 11 : updated_num = 38307337, elapsed time = 39058 ms
+LOG: [2021/10/10 08:46:42] start: iteration 12
+LOG: [2021/10/10 08:47:17] mid: bfs
+LOG: [2021/10/10 08:47:37] finish: iteration 12 : updated_num = 91419758, elapsed time = 55658 ms
+LOG: [2021/10/10 08:47:37] start: iteration 13
+LOG: [2021/10/10 08:48:50] mid: bfs
+LOG: [2021/10/10 08:49:12] finish: iteration 13 : updated_num = 201637267, elapsed time = 94987 ms
+LOG: [2021/10/10 08:49:12] start: iteration 14
+LOG: [2021/10/10 08:51:38] mid: bfs
+LOG: [2021/10/10 08:52:04] finish: iteration 14 : updated_num = 411886389, elapsed time = 172012 ms
+LOG: [2021/10/10 08:52:04] start: iteration 15
+LOG: [2021/10/10 08:56:58] mid: bfs
+LOG: [2021/10/10 08:57:30] finish: iteration 15 : updated_num = 767525717, elapsed time = 325744 ms
+LOG: [2021/10/10 08:57:30] start: iteration 16
+LOG: [2021/10/10 09:06:16] mid: bfs
+LOG: [2021/10/10 09:06:57] finish: iteration 16 : updated_num = 1262744615, elapsed time = 567289 ms
+LOG: [2021/10/10 09:06:57] start: iteration 17
+LOG: [2021/10/10 09:21:32] mid: bfs
+LOG: [2021/10/10 09:22:25] finish: iteration 17 : updated_num = 1851900832, elapsed time = 927509 ms
+LOG: [2021/10/10 09:22:25] start: iteration 18
+LOG: [2021/10/10 09:43:26] mid: bfs
+LOG: [2021/10/10 09:44:29] finish: iteration 18 : updated_num = 2259589185, elapsed time = 1324324 ms
+LOG: [2021/10/10 09:44:29] start: iteration 19
+LOG: [2021/10/10 10:10:36] mid: bfs
+LOG: [2021/10/10 10:11:44] finish: iteration 19 : updated_num = 2356709939, elapsed time = 1634303 ms
+LOG: [2021/10/10 10:11:44] start: iteration 20
+LOG: [2021/10/10 10:39:08] mid: bfs
+LOG: [2021/10/10 10:40:13] finish: iteration 20 : updated_num = 1884609912, elapsed time = 1709114 ms
+LOG: [2021/10/10 10:40:13] start: iteration 21
+LOG: [2021/10/10 11:02:58] mid: bfs
+LOG: [2021/10/10 11:03:54] finish: iteration 21 : updated_num = 1172437043, elapsed time = 1420950 ms
+LOG: [2021/10/10 11:03:54] start: iteration 22
+LOG: [2021/10/10 11:18:30] mid: bfs
+LOG: [2021/10/10 11:19:13] finish: iteration 22 : updated_num = 475193903, elapsed time = 919863 ms
+LOG: [2021/10/10 11:19:13] start: iteration 23
+LOG: [2021/10/10 11:25:27] mid: bfs
+LOG: [2021/10/10 11:26:00] finish: iteration 23 : updated_num = 113051575, elapsed time = 407008 ms
+LOG: [2021/10/10 11:26:00] start: iteration 24
+LOG: [2021/10/10 11:27:39] mid: bfs
+LOG: [2021/10/10 11:28:04] finish: iteration 24 : updated_num = 9503831, elapsed time = 123814 ms
+LOG: [2021/10/10 11:28:04] start: iteration 25
+LOG: [2021/10/10 11:28:21] mid: bfs
+LOG: [2021/10/10 11:28:41] finish: iteration 25 : updated_num = 115519, elapsed time = 36947 ms
+LOG: [2021/10/10 11:28:41] start: iteration 26
+LOG: [2021/10/10 11:28:50] mid: bfs
+LOG: [2021/10/10 11:29:09] finish: iteration 26 : updated_num = 97, elapsed time = 27280 ms
+LOG: [2021/10/10 11:29:09] start: iteration 27
+LOG: [2021/10/10 11:29:17] mid: bfs
+LOG: [2021/10/10 11:29:36] finish: iteration 27 : updated_num = 0, elapsed time = 27077 ms
+LOG: [2021/10/10 11:29:36] finish: bfs
+LOG: [2021/10/10 11:29:36] start: print_statistics_of_results
+result: number of nontrivial nodes of which distance to endgame is:
+result:  -1 : 0
+result: 0 : 1
+result: 1 : 9
+result: 2 : 102
+result: 3 : 954
+result: 4 : 6329
+result: 5 : 33052
+result: 6 : 147620
+result: 7 : 556811
+result: 8 : 1863530
+result: 9 : 5542830
+result: 10 : 15200179
+result: 11 : 38307337
+result: 12 : 91419758
+result: 13 : 201637267
+result: 14 : 411886389
+result: 15 : 767525717
+result: 16 : 1262744615
+result: 17 : 1851900832
+result: 18 : 2259589185
+result: 19 : 2356709939
+result: 20 : 1884609912
+result: 21 : 1172437043
+result: 22 : 475193903
+result: 23 : 113051575
+result: 24 : 9503831
+result: 25 : 115519
+result: 26 : 97
+LOG: [2021/10/10 11:29:55] finish: print_statistics_of_results
+LOG: [2021/10/10 11:29:55] start: output_positions_and_solutions
+LOG: [2021/10/10 12:33:13] finish: output_positions_and_solutions
+LOG: [2021/10/10 12:34:07] finish: breadth-first search from the initial node: start_piece = 10, elapsed time = 16684199 ms, fingerprint = 16289116415850911092
