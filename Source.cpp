@@ -2660,7 +2660,8 @@ int main(int argc, char *argv[]) {
 			std::cout << "notice: input == -1 : all CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 		}
 		else {
-			std::cout << "warning: parallelism setting is ignored. (all CPU cores are used.) input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+			std::cout << "warning: parallelism setting is ignored. (single CPU core is used.) input = " << par << ", omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+			omp_set_num_threads(1);
 		}
 	}
 
