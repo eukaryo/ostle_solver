@@ -47,7 +47,6 @@ def search_and_print_146move():
     print(f"finish: num = {len(all_result)}")
     for r in all_result:
         print(f"found: {r}")
-        count += 1
     print(f"finish: num = {len(all_result)}")
     
 if __name__ == "__main__":
