@@ -1,5 +1,5 @@
 /*
-# Author: Hiroki Takizawa, 2021
+# Author: Hiroki Takizawa, 2021-2022
 
 # License: MIT License
 
@@ -91,16 +91,16 @@ void visualize_ostle(const uint64_t bb_player, const uint64_t bb_opponent, const
 	for (int i = 0; i < 5; ++i) {
 		for (int j = 4; j >= 0; --j) {
 			const uint64_t bb1 = 1ULL << (i * 8 + j);
-			if (bb_player & bb1)std::cout << "■";
-			else if (bb_opponent & bb1)std::cout << "□";
-			else if (pos_hole == i * 5 + j)std::cout << "◎";
-			else std::cout << "＋";
+			if (bb_player & bb1)std::cout << "B ";
+			else if (bb_opponent & bb1)std::cout << "W ";
+			else if (pos_hole == i * 5 + j)std::cout << "O ";
+			else std::cout << "+ ";
 		}
 		switch (i) {
-		case 0: std::cout << "  player   : ■"; break;
-		case 1: std::cout << "  opponent : □"; break;
-		case 2: std::cout << "  hole     : ◎"; break;
-		case 3: std::cout << "  empty    : ＋"; break;
+		case 0: std::cout << "  player   : B "; break;
+		case 1: std::cout << "  opponent : W "; break;
+		case 2: std::cout << "  hole     : O "; break;
+		case 3: std::cout << "  empty    : + "; break;
 		}
 		std::cout << std::endl;
 	}
@@ -1880,7 +1880,6 @@ public:
 		uint64_t count = 0;
 		std::string text;
 		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
-		const std::string SERIAL_TRIVIAL_CODE = "-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 		uint64_t node_index = 0;
 		for (uint64_t i = 0; i < all_positions.size(); ++i) {
@@ -2653,7 +2652,7 @@ int main(int argc, char *argv[]) {
 	else {
 		const int par = std::stoi(input["parallel"]);
 		if (1 <= par && par <= omp_get_max_threads()) {
-			std::cout << "notice: " << par <<" CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
+			std::cout << "notice: " << par << " CPU cores are used. omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 			omp_set_num_threads(par);
 		}
 		else if (par == -1) {
