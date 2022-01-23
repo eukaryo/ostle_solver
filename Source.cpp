@@ -1,9 +1,9 @@
 /*
-# Author: Hiroki Takizawa, 2021-2022
+# Author: Hiroki Takizawa, 2021
 
 # License: MIT License
 
-# Copyright(c) 2022 Hiroki Takizawa
+# Copyright(c) 2021 Hiroki Takizawa
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
@@ -32,8 +32,10 @@
 #include<functional>
 #include<limits>
 #include<queue>
+#include<numeric>
 #include<regex>
 #include<random>
+#include <filesystem>
 
 #include <omp.h>
 
@@ -79,7 +81,6 @@ inline uint64_t pext_intrinsics(uint64_t a, uint64_t mask) { return _pext_u64(a,
 constexpr uint64_t BB_ALL_8X8_5X5 = 0b00011111'00011111'00011111'00011111'00011111ULL;
 constexpr uint64_t BB_HORI_EDGE_8X8_5X5 = 0b00010001'00010001'00010001'00010001'00010001ULL;
 constexpr uint64_t BB_VERT_EDGE_8X8_5X5 = 0b00011111'00000000'00000000'00000000'00011111ULL;
-
 
 void visualize_ostle(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole) {
 
@@ -1082,7 +1083,7 @@ void encode_25numbers(const uint64_t code, std::string &dest) {
 }
 
 void decode_25numbers(const std::string &s, uint64_t &dest) {
-	//encode_25numbersで変換された文字列sを受け取り、盤面を25文字の可読なフォーマットに変換して返す。
+	//encode_25numbersで変換された文字列sを受け取り、盤面をencode_ostleで圧縮された値codeに変換して返す。
 	//5*5マスの盤面を一列に並べたとして、'1'は手番側のコマ、'2'は相手のコマ、'3'は穴、'0'は空白マスを意味する。
 
 	dest = 0;
@@ -1317,11 +1318,11 @@ class PositionEnumerator {
 
 private:
 
-	std::vector<uint64_t>positions;
+	//std::vector<uint64_t>positions;
 
 	int num_start_piece;
 
-	void dfs_position(const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
+	void dfs_position(std::vector<uint64_t>& positions, const uint64_t bb_player, const uint64_t bb_opponent, const uint64_t pos_hole, const int cursor, const int num_piece_player, const int num_piece_opponent) {
 
 		const int num_remaining_object = num_piece_player + num_piece_opponent + (cursor <= pos_hole ? 1 : 0);
 
@@ -1336,35 +1337,34 @@ private:
 		}
 
 		if (pos_hole == cursor) {
-			dfs_position(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+			dfs_position(positions, bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 			return;
 		}
 
 		if (num_remaining_object + cursor < 25) {
-			dfs_position(bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
+			dfs_position(positions, bb_player, bb_opponent, pos_hole, cursor + 1, num_piece_player, num_piece_opponent);
 		}
 
 		const uint64_t bb_cursor = pdep_intrinsics(1ULL << cursor, BB_ALL_8X8_5X5);
 
 		if (num_piece_player > 0) {
-			dfs_position(bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
+			dfs_position(positions, bb_player | bb_cursor, bb_opponent, pos_hole, cursor + 1, num_piece_player - 1, num_piece_opponent);
 		}
 		if (num_piece_opponent > 0) {
-			dfs_position(bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
+			dfs_position(positions, bb_player, bb_opponent | bb_cursor, pos_hole, cursor + 1, num_piece_player, num_piece_opponent - 1);
 		}
 	}
 
-	uint64_t dfs_position_root(const uint64_t pos_hole, const int num_piece_player, const int num_piece_opponent, std::vector<uint64_t> &all_positions) {
+	uint64_t dfs_position_root(const int pos_hole, const int num_piece_player, const int num_piece_opponent, std::vector<uint64_t> &all_positions) {
 		//穴の位置とコマの数を引数に取り、その条件に沿った盤面を全列挙して、対称な局面を同一視して重複削除してからall_positionsの末尾に加える。返り値は、最終的に加えた盤面の数とする。
 
-		positions.clear();
+		std::vector<uint64_t>positions;
 		positions.reserve(500'000'000ULL);
 
-		dfs_position(0, 0, pos_hole, 0, num_piece_player, num_piece_opponent);
+		dfs_position(positions, 0, 0, uint64_t(pos_hole), 0, num_piece_player, num_piece_opponent);
 
 		const int64_t siz = positions.size();
 
-#pragma omp parallel for
 		for (int64_t i = 0; i < siz; ++i) {
 			positions[i] = code_unique(positions[i]);
 		}
@@ -1372,40 +1372,55 @@ private:
 
 		const auto result = std::unique(positions.begin(), positions.end());
 		positions.erase(result, positions.end());
-		std::copy(positions.begin(), positions.end(), std::back_inserter(all_positions));
 
-		std::cout << "result: dfs_position_root(" << my_itos(pos_hole, 2, ' ') << "," << num_piece_player << "," << num_piece_opponent << "): "
-			<< my_itos(uint64_t(siz), 9, ' ') << " positions; " << my_itos(positions.size(), 9, ' ') << " unique positions." << std::endl;
+#pragma omp critical
+		{
+			std::copy(positions.begin(), positions.end(), std::back_inserter(all_positions));
 
+			std::cout << "result: dfs_position_root(" << my_itos(pos_hole, 2, ' ') << "," << num_piece_player << "," << num_piece_opponent << "): "
+				<< my_itos(uint64_t(siz), 9, ' ') << " positions; " << my_itos(positions.size(), 9, ' ') << " unique positions." << std::endl;
+		}
 		return positions.size();
 	}
 
 public:
 
-	PositionEnumerator() {
-		positions.reserve(500'000'000ULL);
-	}
+	PositionEnumerator() {}
 
 	void do_enumerate(const int start_piece, std::vector<uint64_t> &all_positions) {
 
 		num_start_piece = start_piece;
 
-		const uint64_t holes[6] = { 0,1,2,6,7,12 };
-		uint64_t num_unique_positions = 0;
+		const int holes[6] = { 0,1,2,6,7,12 };
 
 		std::cout << "LOG: [" << get_datetime_str() << "] start: dfs_position_root" << std::endl;
 
+		std::vector<std::array<int, 3>>tasks;
+
 		switch (num_start_piece) {
 		case 10:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 5, all_positions);
+			for (int i = 0; i < 6; ++i)tasks.push_back({ holes[i],5,5 });
 		case 9:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 5, 4, all_positions);
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 5, all_positions);
+			for (int i = 0; i < 6; ++i)tasks.push_back({ holes[i],5,4 });
+			for (int i = 0; i < 6; ++i)tasks.push_back({ holes[i],4,5 });
 		case 8:
-			for (int i = 0; i < 6; ++i)num_unique_positions += dfs_position_root(holes[i], 4, 4, all_positions);
+			for (int i = 0; i < 6; ++i)tasks.push_back({ holes[i],4,4 });
 			break;
 		default:
 			assert(false);
+		}
+
+		uint64_t num_unique_positions = 0;
+
+		const int numtask = tasks.size();
+
+#pragma omp parallel for schedule(dynamic, 1)
+		for (int i = 0; i < numtask; ++i) {
+			const uint64_t answer = dfs_position_root(tasks[i][0], tasks[i][1], tasks[i][2], all_positions);
+#pragma omp critical
+			{
+				num_unique_positions += answer;
+			}
 		}
 
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: dfs_position_root" << std::endl;
@@ -1427,6 +1442,7 @@ public:
 		return;
 	}
 };
+
 
 class BitVector {
 
@@ -1662,10 +1678,10 @@ protected:
 	void output_special_positions(const uint64_t zerocount) {
 
 		constexpr int BUFSIZE = 2 * 1024 * 1024;
-		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
+		std::unique_ptr<char[]> buf(new char[BUFSIZE]);
 
 		std::ofstream writing_file;
-		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
+		writing_file.rdbuf()->pubsetbuf(buf.get(), BUFSIZE);
 		writing_file.open("ostle_special_positions.txt", std::ios::out);
 
 		std::string numcode;
@@ -1873,10 +1889,10 @@ public:
 		std::cout << "LOG: [" << get_datetime_str() << "] start: output_positions_and_solutions" << std::endl;
 
 		constexpr int BUFSIZE = 2 * 1024 * 1024;
-		static char buf[BUFSIZE];//大きいのでスタック領域に置きたくないからstatic。（べつにmallocでもstd::vectorでもいいんだけど）
+		std::unique_ptr<char[]> buf(new char[BUFSIZE]);
 
 		std::ofstream writing_file;
-		writing_file.rdbuf()->pubsetbuf(buf, BUFSIZE);
+		writing_file.rdbuf()->pubsetbuf(buf.get(), BUFSIZE);
 		uint64_t count = 0;
 		std::string text;
 		constexpr uint64_t SINGLE_FILE_LIMIT = 1'000'000;
@@ -2249,6 +2265,8 @@ private:
 		return 0;
 	}
 
+protected:
+
 	std::pair<uint64_t, uint64_t> retrograde_analysis_single_iteration() {
 
 		const uint64_t TASK_SIZE = 1'000'000ULL;
@@ -2532,6 +2550,352 @@ public:
 	}
 };
 
+class OstleSearchInterstingPositions : public OstleRetrogradeAnalyzer {
+
+private:
+
+	int64_t load_retrograde_result_onefile(const std::string filename) {
+
+		int64_t num_datapoint = 0;
+
+		constexpr int BUFSIZE = 2 * 1024 * 1024;
+		std::unique_ptr<char[]> buf(new char[BUFSIZE]);
+		std::ifstream reading_file;
+		reading_file.rdbuf()->pubsetbuf(buf.get(), BUFSIZE);
+
+		reading_file.open(filename);
+		if (!reading_file.is_open()) {
+			std::cout << "error: load_retrograde_result_onefile: is_open" << std::endl;
+			std::cout << filename << std::endl;
+			std::exit(EXIT_FAILURE);
+		}
+
+		const std::regex re1 = std::regex(R"(^([a-zA-Z0-9+/]+),([a-z0-9,]+))");
+		const std::regex re2 = std::regex(R"(^[a-zA-Z0-9+/]+$)");
+		const std::regex re3 = std::regex(R"(^[a-z0-9,]+$)");
+		const std::regex re4 = std::regex(R"([0-9,]+)");
+
+		std::string line;
+		std::string position_base64code;
+		std::string retrograde_data;
+		std::vector<int16_t> numbers;
+		std::string item;
+
+		while (std::getline(reading_file, line)) {
+			std::smatch m;
+			if (!std::regex_search(line, m, re1)) {
+				std::cout << "error: load_retrograde_result_onefile: regex_search" << std::endl;
+				std::cout << line << std::endl;
+				std::exit(EXIT_FAILURE);
+			}
+			std::string position_base64code = m[1].str();
+			std::string retrograde_data = m[2].str();
+			assert(std::regex_match(position_base64code, re2));
+			assert(std::regex_match(retrograde_data, re3));
+			uint64_t position_code = 0;
+			decode_base64(position_base64code, position_code);
+			const uint64_t position_index = code2index(position_code);
+			if (retrograde_data.find("checkmate") != std::string::npos) {
+				if (!is_checkmate_position.get(position_index)) {
+					std::cout << "error: load_retrograde_result_onefile:" << std::endl;
+					std::cout << "the file " << filename << " says that " << position_code << " is a checkmate position, but the analysis says not." << std::endl;
+					std::exit(EXIT_FAILURE);
+				}
+			}
+			else {
+
+				assert(std::regex_match(retrograde_data, re4));
+
+				//numbers = split(retrograde_data, ',')
+				{
+					numbers.clear();
+					item.clear();
+					for (char ch : retrograde_data) {
+						if (ch == ',') {
+							if (!item.empty())
+								numbers.push_back(std::stoi(item));
+							item.clear();
+						}
+						else {
+							item += ch;
+						}
+					}
+					if (!item.empty()) {
+						numbers.push_back(std::stoi(item));
+					}
+				}
+
+				const uint64_t solution_index = is_nontrivial_node.rank1(position_index * 25);
+				const uint64_t next_solution_index = is_nontrivial_node.rank1((position_index + 1) * 25);
+				if (next_solution_index - solution_index != numbers.size()) {
+					std::cout << "error: load_retrograde_result_onefile:" << std::endl;
+					std::cout << "next_solution_index - solution_index != numbers.size()" << std::endl;
+					std::exit(EXIT_FAILURE);
+				}
+				for (uint64_t i = 0; i < numbers.size(); ++i) {
+					assert(all_nontrivial_solutions[solution_index + i] == -1);
+					all_nontrivial_solutions[solution_index + i] = numbers[i];
+					++num_datapoint;
+				}
+			}
+		}
+		reading_file.close();
+		return num_datapoint;
+	}
+
+	void load_retrograde_result_files() {
+
+		std::cout << "LOG: [" << get_datetime_str() << "] start: load retrograde result files" << std::endl;
+
+		std::vector<std::string>target_filenames;
+		for (const auto & file : std::filesystem::directory_iterator("./")) {
+			const std::string filename = file.path().string();
+			if (std::regex_search(filename, std::regex(R"(ostle_10_retrograde_output[0-9]+\.txt)"))) {
+				target_filenames.push_back(filename);
+			}
+		}
+
+		std::sort(target_filenames.begin(), target_filenames.end());
+		target_filenames.erase(std::unique(target_filenames.begin(), target_filenames.end()), target_filenames.end());
+
+		if (target_filenames.size() != 2736) {
+			std::cout << "error: load_retrograde_result_files: target_filenames.size() != 2736" << std::endl;
+			std::exit(EXIT_FAILURE);
+		}
+
+		int64_t num_file = 0;
+		std::vector<int64_t>num_datapoint(2736);
+
+#pragma omp parallel for schedule(dynamic, 1)
+		for (int i = 0; i < 2736; ++i) {
+#pragma omp critical
+			{
+				++num_file;
+				std::cout << "LOG: [" << get_datetime_str() << "] loading: " << target_filenames[i] << " ( " << num_file << " / 2736 )" << std::endl;
+			}
+			num_datapoint[i] = load_retrograde_result_onefile(target_filenames[i]);
+		}
+
+		assert(std::accumulate(num_datapoint.begin(), num_datapoint.end(), int64_t(0)) == int64_t(all_nontrivial_solutions.size()));
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: load retrograde result files" << std::endl;
+	}
+
+	int is_interesting_position(const uint64_t index) {
+
+		assert(index < all_positions.size());
+
+		if (is_checkmate_position.get(index))return 0;
+		if (!is_nontrivial_node.get(index * 25))return 0;
+
+		const uint64_t now_code = all_positions[index];
+
+		uint64_t bb_player = 0, bb_opponent = 0, pos_hole = 0;
+		decode_ostle(now_code, bb_player, bb_opponent, pos_hole);
+
+		const auto func_N = [&](const int n) {
+			//n==1:
+			//禁じ手が無いときに引き分けの局面で、相手の駒を押し出す手が1つ以上あるが、そのどれを指しても負けになる。
+			//n==2:
+			//禁じ手が無いときに勝ちの局面で、自分の駒を押し出す手が1つ以上あるが、そのどれかを指すと勝ちになる。自分の駒を押し出す手を指さなければ勝ちにならない。
+			//n==3:
+			//禁じ手が無いときに勝ちの局面で、穴を動かす手が1つ以上あるが、そのどれかを指すと勝ちになる。穴を動かす手を指さなければ勝ちにならない。
+
+			const int now_result = all_nontrivial_solutions[is_nontrivial_node.rank1(index * 25)];
+			if (n == 1) {
+				if (_mm_popcnt_u64(bb_opponent) != 5)return false;
+				if (!(now_result == 0))return false;
+			}
+			else if (n == 2) {
+				if (_mm_popcnt_u64(bb_player) != 5)return false;
+				if (!(now_result > 0 && now_result % 2 == 0))return false;
+			}
+			else if (n == 3) {
+				if (!(now_result > 0 && now_result % 2 == 0))return false;
+			}
+			else {
+				assert(false);
+			}
+
+			Moves moves, next_moves;
+			generate_moves(bb_player, bb_opponent, pos_hole, moves);
+
+			assert(moves[0] <= 24);
+
+			bool not_exist_target_move = true;
+
+			for (uint8_t j = 1; j <= moves[0]; ++j) {
+
+				uint64_t next_bb_player = bb_player, next_bb_opponent = bb_opponent, next_pos_hole = pos_hole;
+				do_move(next_bb_player, next_bb_opponent, next_pos_hole, moves[j]);
+
+				//自殺手とチェックメイトを実行する手を指した後の盤面は考えない。
+				if (_mm_popcnt_u64(next_bb_player) == 3)continue;
+				if (_mm_popcnt_u64(next_bb_opponent) == 3)continue;
+
+				const uint64_t next_index = code2index(code_unique(encode_ostle(next_bb_opponent, next_bb_player, next_pos_hole)));
+
+				int16_t next_result = -1;
+				if (!is_checkmate_position.get(next_index)) {
+					const uint64_t forbidden_index = determine_forbidden_index(all_positions[index], all_positions[next_index], next_moves);
+					next_result = all_nontrivial_solutions[is_nontrivial_node.rank1(next_index * 25 + forbidden_index)];
+					assert(next_result >= 0);
+				}
+
+				//next_resultがゼロなら、moves[j]を指した直後の局面が引き分け。
+				//next_resultが正の偶数なら、moves[j]を指した直後の局面が相手にとって勝ち。
+				//next_resultが正の奇数なら、moves[j]を指した直後の局面が相手にとって負け。
+				//next_resultが-1なら、moves[j]を指した直後の局面が相手にとって一手詰めの勝ち。
+
+				if (n == 1) {
+					assert(next_result == 0 || next_result == -1 || (next_result % 2 == 0));//元局面が引き分けのはずなので、何か指したあとの局面は相手にとって引き分けか勝ち。
+					if (_mm_popcnt_u64(next_bb_opponent) == 4) {
+						not_exist_target_move = false;
+						if (next_result == 0)return false;
+					}
+					else {
+						assert(_mm_popcnt_u64(next_bb_opponent) == 5);
+						//if (next_result > 0 && next_result % 2 == 1)return false;
+					}
+				}
+				else if (n == 2) {
+					if (_mm_popcnt_u64(next_bb_player) == 4) {
+						not_exist_target_move = false;
+					}
+					else {
+						assert(_mm_popcnt_u64(next_bb_player) == 5);
+						if (next_result > 0 && (next_result % 2 == 1))return false;
+					}
+				}
+				else if (n == 3) {
+					if (next_pos_hole != pos_hole) {
+						not_exist_target_move = false;
+					}
+					else {
+						if (next_result > 0 && (next_result % 2 == 1))return false;
+					}
+
+				}
+				else {
+					assert(false);
+				}
+			}
+
+			return !not_exist_target_move;
+		};
+
+		for (int i = 1; i <= 3; ++i) {
+			if (func_N(i)) {
+				return i;
+			}
+		}
+
+		return 0;
+	}
+
+public:
+
+	OstleSearchInterstingPositions(const int start_piece) : OstleRetrogradeAnalyzer(start_piece) {}
+
+	OstleSearchInterstingPositions() = delete;
+
+	void execute() {
+
+		if (num_start_piece != 10) {
+			std::cout << "error: OstleSearchInterstingPositions: execute: num_start_piece must be 10" << std::endl;
+			std::exit(EXIT_FAILURE);
+		}
+
+		do_enumerate();
+
+		count_nontrivial_node_and_make_bitvector(true);
+
+		all_nontrivial_solutions.clear();
+		all_nontrivial_solutions.resize(is_nontrivial_node.popcount(), -1);
+
+		load_retrograde_result_files();
+
+		{
+			std::cout << "LOG: [" << get_datetime_str() << "] start: iteration for testing " << std::endl;
+			const auto t = std::chrono::system_clock::now();
+			const auto updated_num = retrograde_analysis_single_iteration();
+			const auto s = std::chrono::system_clock::now();
+			const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+			std::cout << "LOG: [" << get_datetime_str() << "] finish: iteration for testing"
+				<< " : updated_num = " << updated_num.first << "(denovo = " << updated_num.second << "), elapsed time = " << elapsed << " ms" << std::endl;
+			assert(updated_num.first == 0);
+		}
+
+		std::cout << "LOG: [" << get_datetime_str() << "] start: search intersting positions" << std::endl;
+
+		std::vector<uint64_t>answer1, answer2, answer3;
+
+		constexpr int64_t CHANKSIZE = 65536;
+		const int64_t siz1 = (int64_t(all_positions.size()) + CHANKSIZE - 1) / CHANKSIZE;
+
+#pragma omp parallel for schedule(dynamic, 1)
+		for (int64_t i_omp = 0; i_omp < siz1; ++i_omp) {
+
+			std::vector<uint64_t>buf1, buf2, buf3;
+
+			for (int64_t i = 0; i < CHANKSIZE; ++i) {
+				const int64_t n = i_omp * CHANKSIZE + i;
+				if (uint64_t(n) >= all_positions.size())break;
+				const int result = is_interesting_position(n);
+				switch (result) {
+				case 1: buf1.push_back(all_positions[n]); break;
+				case 2: buf2.push_back(all_positions[n]); break;
+				case 3: buf3.push_back(all_positions[n]); break;
+				case 0: break;
+				default: assert(false);
+				}
+			}
+
+#pragma omp critical
+			{
+				answer1.insert(answer1.end(), buf1.begin(), buf1.end());
+				answer2.insert(answer2.end(), buf2.begin(), buf2.end());
+				answer3.insert(answer3.end(), buf3.begin(), buf3.end());
+			}
+		}
+
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: search intersting positions" << std::endl;
+
+		std::cout << "info: answer1.size() = " << answer1.size() << std::endl;
+		std::cout << "info: answer2.size() = " << answer2.size() << std::endl;
+		std::cout << "info: answer3.size() = " << answer3.size() << std::endl;
+
+		std::cout << "LOG: [" << get_datetime_str() << "] start: sort and output intersting positions" << std::endl;
+
+		std::sort(answer1.begin(), answer1.end());
+		std::sort(answer2.begin(), answer2.end());
+		std::sort(answer3.begin(), answer3.end());
+
+		const auto func_output = [&](const std::string filename, const std::vector<uint64_t>&target) {
+
+			constexpr int BUFSIZE = 2 * 1024 * 1024;
+			std::unique_ptr<char[]> buf(new char[BUFSIZE]);
+
+			std::ofstream writing_file;
+			writing_file.rdbuf()->pubsetbuf(buf.get(), BUFSIZE);
+			std::string text;
+
+			writing_file.open(filename, std::ios::out);
+			for (uint64_t i = 0; i < target.size(); ++i) {
+				encode_25numbers(target[i], text);
+				writing_file << text << "," << all_nontrivial_solutions[is_nontrivial_node.rank1(code2index(code_unique(target[i])) * 25)] << std::endl;
+			}
+			writing_file.close();
+
+		};
+
+		func_output("interesting_positions_1.txt", answer1);
+		func_output("interesting_positions_2.txt", answer2);
+		func_output("interesting_positions_3.txt", answer3);
+
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: sort and output intersting positions" << std::endl;
+	}
+};
+
 uint64_t solve_8() {
 	std::cout << "LOG: [" << get_datetime_str() << "] start: solve_8" << std::endl;
 	OstleRetrogradeAnalyzer e(8);
@@ -2596,6 +2960,9 @@ int main(int argc, char *argv[]) {
 			}
 			else if (args[i] == "-b" || args[i] == "--bfs") {
 				input["bfs"] = "true";
+			}
+			else if (args[i] == "-i" || args[i] == "--interesting") {
+				input["interesting"] = "true";
 			}
 			else if (args[i] == "-p" || args[i] == "--parallel") {
 				opcode = "parallel";
@@ -2717,6 +3084,18 @@ int main(int argc, char *argv[]) {
 		const auto s = std::chrono::system_clock::now();
 		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
 		std::cout << "LOG: [" << get_datetime_str() << "] finish: breadth-first search from the initial node: start_piece = " << start_piece << ", elapsed time = " << elapsed << " ms, fingerprint = " << fingerprint << std::endl;
+	}
+
+	if (input.find("interesting") != input.end()) {
+		std::cout << "LOG: [" << get_datetime_str() << "] start: search interesting positions: start_piece = " << start_piece << std::endl;
+		const auto t = std::chrono::system_clock::now();
+
+		OstleSearchInterstingPositions e(start_piece);
+		e.execute();
+
+		const auto s = std::chrono::system_clock::now();
+		const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s - t).count();
+		std::cout << "LOG: [" << get_datetime_str() << "] finish: search interesting positions: start_piece = " << start_piece << ", elapsed time = " << elapsed << " ms" << std::endl;
 	}
 
 	return 0;
