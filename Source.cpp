@@ -3011,7 +3011,6 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	const int num_logical_core = omp_get_num_threads();
 	if (input.find("parallel") == input.end()) {
 		std::cout << "notice: no parallel processing is performed. (single CPU core is used.)" << std::endl;
 		omp_set_num_threads(1);
