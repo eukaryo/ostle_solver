@@ -1,6 +1,6 @@
 # ostle_solver
 
-The Japanese version is after the English version.
+The Japanese description is after the English one. (日本語の説明文は英語版の後ろにあります)
 
 ### How to solve
 
