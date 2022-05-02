@@ -1,5 +1,54 @@
 # ostle_solver
 
+The Japanese version is after the English version.
+
+### How to solve
+
+```Shell
+$ make
+$ ./solver -r -b -i -p -1
+```
+
+#### options
+- -r: execure retrograde analysis.
+- -b: execute bfs.
+- -i: enumerate interesting states.
+- -p [n]: Compute n threads in parallel; if n=-1, all logical cores are used. Default is n=1 (=no parallelization).
+- -t: execute unittests.
+- -s [n]: The total number of pieces is restricted to a phase with n or less. If not specified, n=10 (= complete analysis).
+
+When the program performs a retrograde analysis and/or bfs, it writes the results as text files.
+
+(each file is less than 50 MB, about 213 GB in total)
+
+Note: solver uses AMD64 AVX2 and BMI2, so it will only work on Haswell or later for Intel CPUs and Excavator or later for AMD CPUs. Additionally, it makes heavy use of BMI2 pdep/pext instructions, therefore it may take a long time to execute on Zen2 and earlier generation AMD CPUs.
+
+#### about python scripts
+
+Python scripts are available to read the full analysis files for the retrograde analysis and bfs results and perform additional analysis. They works with PyPy 7.3.1 (Python 3.6.9).
+
+- query.py: Receives state information via command line arguments and outputs the following:
+  - The result of the retrograde analysis for the argument (win/loss and number of moves to the end of the game)
+  - Results of bfs for the received phase
+  - -s: The results of the retrograde analysis for all possible moves from the received game to the end of the game and for all legal moves along the way.
+
+#### how to use query.py
+
+For example, when the current board is 00100-11200-00001-31022-20020 and the previous board is 00000-22200-00102-32011-10010, in order to obtain the results of the retrograde analysis:
+
+```Shell
+$ python3 query.py 00100-11200-00001-31022-20020 -p 00000-22200-00102-32011-10010 -s
+```
+
+The above is sufficient. If you wish to know about a game in which no restricted move exist, you can omit it as shown below.
+
+```Shell
+$ python3 query.py 00100-11200-00001-31022-20020 -s
+```
+
+
+### 以下は日本語
+
 https://gamemarket.jp/game/76310
 
 ※Ostle（オストル）は 雅ゲームスにより制作されたボードゲームです。当リポジトリと雅ゲームスとの関係はありません。
