@@ -25,7 +25,7 @@ Note: solver uses AMD64 AVX2 and BMI2, so it will only work on Haswell or later 
 
 #### about python scripts
 
-Python scripts are available to read the full analysis files for the retrograde analysis and bfs results and perform additional analysis. They works with PyPy 7.3.1 (Python 3.6.9).
+Python scripts require the full analysis files for the retrograde analysis and bfs results. They perform additional analysis. They works with PyPy 7.3.1 (Python 3.6.9).
 
 - query.py: Receives state information via command line arguments and outputs the following:
   - The result of the retrograde analysis for the argument (win/loss and number of moves to the end of the game)
