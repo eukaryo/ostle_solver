@@ -17,7 +17,7 @@ $ ./solver -r -b -i -p -1
 - -t: execute unittests.
 - -s [n]: The total number of pieces is restricted to a phase with n or less. If not specified, n=10 (= complete analysis).
 
-When the program performs a retrograde analysis and/or bfs, it writes the results as text files.
+The program performs a retrograde analysis and/or bfs, and writes the results as text files.
 
 (each file is less than 50 MB, about 213 GB in total)
 
