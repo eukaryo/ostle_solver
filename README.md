@@ -1,5 +1,7 @@
 # ostle_solver
 
+[![DOI](https://zenodo.org/badge/405170430.svg)](https://zenodo.org/badge/latestdoi/405170430)
+
 The Japanese description is after the English one. (日本語の説明文は英語版の後ろにあります)
 
 ### How to solve
